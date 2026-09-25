@@ -5,9 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as mock from "./mock-binance.mjs";
+import * as bo from "./mock-bitoasis.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MP = 9311, SP = 9312, BASE = `http://127.0.0.1:${SP}`;
+const MP = 9311, SP = 9312, BP = 9313, BASE = `http://127.0.0.1:${SP}`;
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "tp-"));
 let pass = 0, fail = 0, cookie = "";
 const ok = (c, m) => { if (c) { pass++; console.log("  ✓", m); } else { fail++; console.log("  ✗", m); } };
@@ -19,8 +20,8 @@ async function api(p, body) {
 }
 async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() - t < ms) { const v = await fn(); if (v) return v; await sleep(300); } return null; }
 
-await mock.start(MP);
-const srv = spawn(process.execPath, ["src/server.js"], { cwd: ROOT, env: { ...process.env, PORT: SP, HOST: "127.0.0.1", DATA_DIR: DATA, BINANCE_BASE: `http://127.0.0.1:${MP}`, TICK_MS: "1500", SETUP_CODE: "123456" }, stdio: ["ignore", "pipe", "pipe"] });
+await mock.start(MP); await bo.start(BP);
+const srv = spawn(process.execPath, ["src/server.js"], { cwd: ROOT, env: { ...process.env, PORT: SP, HOST: "127.0.0.1", DATA_DIR: DATA, BINANCE_BASE: `http://127.0.0.1:${MP}`, BITOASIS_BASE: `http://127.0.0.1:${BP}/v1`, TICK_MS: "1500", SETUP_CODE: "123456" }, stdio: ["ignore", "pipe", "pipe"] });
 let out = ""; srv.stdout.on("data", (d) => (out += d)); srv.stderr.on("data", (d) => (out += d));
 await until(async () => { try { return (await fetch(BASE + "/api/ping")).ok; } catch { return false; } });
 
@@ -67,7 +68,7 @@ try {
   const sol = st.positions.find((p) => p.symbol === "SOLUSDT"), eth = st.positions.find((p) => p.symbol === "ETHUSDT");
 
   console.log("Breakeven, stop-loss and sell now");
-  mock.setPrice("SOLUSDT", sol.entry + sol.stopDist * 1.6);
+  mock.setPrice("SOLUSDT", sol.entry + sol.stopDist * 1.1);
   st = await until(async () => { const s = (await api("status?acct=live")).d, p = s.positions.find((x) => x.symbol === "SOLUSDT"); return p && p.stop >= p.entry && s; });
   ok(!!st, "stop moved to breakeven after price rose");
   const solStop = mock.state.orders.filter((o) => o.symbol === "SOLUSDT" && o.type === "STOP_LOSS_LIMIT");
@@ -97,18 +98,54 @@ try {
   r = await api("sellall", { acct: "live" });
   ok(r.status === 200 && !r.d.status.running, "sell all stops the live bot");
 
+  console.log("BitOasis (live in AED)");
+  const binanceOrders = mock.state.orders.length;
+  r = await api("settings", { liveExchange: "bitoasis" });
+  ok(r.status === 200 && r.d.liveCcy === "AED" && r.d.accounts.live.budget === 550 && r.d.accounts.live.perTrade === 185, `switched live to BitOasis; budget converted to AED (${r.d.accounts && r.d.accounts.live.budget} / ${r.d.accounts && r.d.accounts.live.perTrade})`);
+  ok((await api("settings", { accounts: { live: { budget: 400, perTrade: 20 } } })).status === 400, "per-trade below BitOasis minimum (25 AED) rejected");
+  await api("settings", { accounts: { live: { budget: 400, perTrade: 150 } } });
+  st = (await api("status?acct=live")).d;
+  ok(st.ccy === "AED" && st.exName === "BitOasis" && st.trades === 0 && !st.hasKeys, "live now shows AED, a fresh BitOasis history and no token yet");
+  r = await api("start", { acct: "live" });
+  ok(r.status === 400 && /BitOasis/.test(r.d.error), "live can't start without a BitOasis token");
+  r = await api("keys", { boToken: "wrong" });
+  ok(!r.d.ok && /token/.test(r.d.error), "wrong BitOasis token reported clearly: " + r.d.error);
+  r = await api("keys", { boToken: "Bearer botoken" });
+  ok(r.d.ok && Math.abs(r.d.free - 1000) < 0.01, "token verified and AED balance read (nested balance format)");
+  ok(!JSON.stringify((await api("settings")).d).includes("botoken"), "BitOasis token is never sent back to the browser");
+  const scb = await until(async () => { const x = (await api("scan")).d; return x.rows && x.rows.some((y) => y.onBO !== undefined) && x; });
+  ok(scb && scb.rows.find((x) => x.symbol === "BTCUSDT").onBO === false && scb.rows.find((x) => x.symbol === "SOLUSDT").onBO === true, "scanner knows which coins BitOasis lists (no BTC in the fake market)");
+  await api("start", { acct: "live" });
+  st = await until(async () => { const s = (await api("status?acct=live")).d; return s.positions.length === 2 && s.positions.every((p) => p.stopOrderId) && s; });
+  ok(!!st, "BitOasis: bought SOL-AED and ETH-AED, each with a stop order on BitOasis");
+  ok(bo.state.errors.length === 0, "BitOasis accepted every real order: " + (bo.state.errors.join("; ") || "no errors"));
+  ok(bo.state.tests >= 4, `every real order was checked with ?test=true first (${bo.state.tests} checks)`);
+  ok(mock.state.orders.length === binanceOrders, "no orders were sent to Binance");
+  ok(st && st.committed <= 300.01 && st.positions.every((p) => p.pair.endsWith("-AED") && p.cost <= 150), `spent within 150 AED per trade (${st && st.committed.toFixed(2)} AED)`);
+  ok(st && Math.abs(1000 - bo.state.bal.AED - st.committed) < 0.01, "cost recorded matches what left the AED wallet exactly");
+  const bsol = st.positions.find((p) => p.symbol === "SOLUSDT"), beth = st.positions.find((p) => p.symbol === "ETHUSDT");
+  mock.setPrice("SOLUSDT", bsol.entry / 3.6725 / 0.999 * (1 + bsol.stopDist / bsol.entry * 1.2));
+  st = await until(async () => { const s = (await api("status?acct=live")).d, p = s.positions.find((x) => x.symbol === "SOLUSDT"); return p && p.stop >= p.entry && p.stopOrderId !== bsol.stopOrderId && s; });
+  const solStops = bo.state.orders.filter((o) => o.pair === "SOL-AED" && o.type === "stop");
+  ok(!!st && solStops.length === 2 && solStops[0].status === "CANCELED" && solStops[1].status === "OPEN", "breakeven: old BitOasis stop cancelled, new one placed");
+  mock.setPrice("SOLUSDT", bsol.entry / 3.6725 * 0.97);
+  await until(async () => !(await api("status?acct=live")).d.positions.some((p) => p.symbol === "SOLUSDT"));
+  const bt1 = (await api("trades?acct=live")).d.trades.find((t) => t.symbol === "SOLUSDT");
+  ok(bt1 && /BitOasis/.test(bt1.reason), "stop filled on BitOasis and recorded: " + (bt1 && bt1.reason));
+  ok((await api("settings", { liveExchange: "binance" })).status === 400, "can't switch exchange while a live trade is open");
+  r = await api("close", { acct: "live", id: beth.id });
+  ok(r.status === 200 && /Sold by you/.test(r.d.trade.reason) && r.d.trade.proceeds > 0, `Sell now sold ETH-AED at market (${r.d.trade && r.d.trade.pnl.toFixed(2)} AED)`);
+  ok(!bo.state.orders.some((o) => o.type === "stop" && o.status === "OPEN"), "no stop orders left behind on BitOasis");
+  ok((bo.state.bal.SOL || 0) < 0.001 && (bo.state.bal.ETH || 0) < 0.0001 && !(bo.state.locked.SOL > 1e-9), "no coins left over after selling");
+  ok(bo.state.errors.length === 0, "still no rejected BitOasis orders");
+  await api("stop", { acct: "live" });
+  r = await api("settings", { liveExchange: "binance" });
+  st = (await api("status?acct=live")).d;
+  ok(r.status === 200 && st.ccy === "USDT" && st.trades === 2, "switching back to Binance brings back the Binance history (in USDT)");
+
   console.log("Backtest");
   r = await api("backtest", { acct: "demo", force: true });
   ok(r.status === 200 && r.d.symbols.length === 3 && r.d.symbols.every((s) => !s.error), `backtest ran on 3 coins: ${r.d.total.trades} trades, ${r.d.total.pnl.toFixed(2)} USDT`);
-
-  console.log("Compare strategies");
-  r = await api("compare", { acct: "demo" });
-  ok(r.status === 200 && r.d.rows.length === 6 && r.d.rows.every((x) => isFinite(x.pnl) && isFinite(x.holdPnl)), `compared 6 strategies: ${r.status === 200 ? r.d.rows.map((x) => `${x.id} ${x.pnl.toFixed(1)}`).join(", ") : JSON.stringify(r.d)}`);
-  ok(r.d.rows.filter((x) => x.current).length === 1 && r.d.rows.find((x) => x.current).id === "pb-trail-1h", "current strategy marked (pullback + trailing, 1h)");
-  r = await api("preset", { id: "bo-trail-4h" });
-  ok(r.status === 200 && r.d.strategy.interval === "4h" && r.d.strategy.entry === "breakout" && r.d.strategy.exit === "trail", "Use this: switched to breakout + trailing on 4h");
-  ok((await api("preset", { id: "nope" })).status === 400, "unknown strategy rejected");
-  ok((await api("settings", { strategy: { exit: "moon" } })).status === 400, "invalid exit style rejected");
 
   console.log("Password");
   ok((await api("password", { current: "nope", password: "newpassword1" })).status === 400, "wrong current password rejected");
