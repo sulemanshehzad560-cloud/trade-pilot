@@ -26,12 +26,16 @@ Each account has its own budget, trades, profit and Start/Stop button, so you ca
 2. **Recent dip:** RSI fell below 42 in the last few candles.
 3. **Turning back up:** RSI is back above 45 and rising, the candle closed green above the 20-candle average, and volume is normal.
 
+You can switch the buy rule to **Breakout**: buy when the price closes above the highest point of the last 20 candles, in an uptrend.
+
 **Every trade gets:**
 
 - **A stop-loss:** 2 × ATR below the buy price (between 1.5% and your max %). In Live it's placed **on Binance itself**, so it protects you even if the server is down.
-- **A target:** reward:risk × the stop distance (2× by default).
-- **Breakeven:** once the price has risen by 1× the stop distance, the stop moves up to the buy price.
-- **A time exit:** it sells if there's no progress after 72 hours (you can change this).
+- **A trailing stop (default):** there's no fixed target. Once the price is up by the stop distance, the stop follows the highest price, so winning trades can keep running. You can switch back to a **fixed target** (reward:risk × the stop distance) in Settings.
+- **Breakeven:** once the price has risen by 1.5× the stop distance, the stop moves to the buy price **plus 0.4%**, enough to cover both fees, so a "breakeven" exit isn't a small loss.
+- **A time exit:** it sells only if a trade has gone nowhere after 72 hours (you can change this).
+
+**Compare strategies (Backtest tab):** tests 6 strategy styles on your coins, fees included, next to "just holding". Tap **Use this** to switch.
 
 **Safety limits:**
 

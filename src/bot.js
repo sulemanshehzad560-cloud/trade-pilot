@@ -3,8 +3,8 @@
 //   live – real orders on your Binance Spot wallet
 // Each account has its own budget, trades, profit and Start/Stop. Strategy and safety rules are shared.
 import { Binance, floorToStep, roundToStep, fillSummary } from "./binance.js";
-import { analyse, manage, DEFAULTS as SDEF } from "./strategy.js";
-import { backtestSymbol } from "./backtest.js";
+import { analyse, manage, DEFAULTS as SDEF, PRESETS } from "./strategy.js";
+import { backtestSymbol, combinedDD } from "./backtest.js";
 import { load, save } from "./store.js";
 
 export const AED = 3.6725;
@@ -15,7 +15,7 @@ const SETTINGS_DEF = {
   accounts: { demo: { ...ACCT_DEF, budget: 1000, perTrade: 100 }, live: { ...ACCT_DEF } },
   maxOpen: 2, dailyLossPct: 5, maxLossPct: 20, cooldownHours: 6,
   watch: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"],
-  strategy: { interval: "1h", rr: 2, maxStopPct: 6, maxHoldHours: 72 },
+  strategy: { interval: "1h", entry: "pullback", exit: "trail", rr: 2, trailR: 2, breakevenR: 1.5, maxStopPct: 6, maxHoldHours: 72 },
 };
 const BOOK_DEF = { positions: [], trades: [], realized: 0, day: { key: "", pnl: 0 }, halt: null, lastBar: {}, cooldown: {}, equity: [] };
 const dubaiDay = (t = Date.now()) => new Date(t + 4 * 3600e3).toISOString().slice(0, 10);
@@ -35,6 +35,7 @@ export class Bot {
     this.base = base; this.fetchImpl = fetchImpl;
     this.api = new Binance({ key: this.secrets.key, secret: this.secrets.secret, base, fetchImpl });
     this.scan = {}; this.scanAt = 0; this.prices = {}; this.busy = false; this.lastError = null; this.errCount = 0; this.bt = null; this.btAt = 0;
+    this.kcache = {}; this.cmp = null;
   }
   acct(a) { if (!ACCTS.includes(a)) throw new Error("Unknown account"); return this.settings.accounts[a]; }
   saveSettings() { save("settings", this.settings); }
@@ -93,6 +94,11 @@ export class Bot {
       if (q.rr !== undefined) st.rr = num(q.rr, 1, 5, "Reward:risk");
       if (q.maxStopPct !== undefined) st.maxStopPct = num(q.maxStopPct, 1, 20, "Max stop-loss");
       if (q.maxHoldHours !== undefined) st.maxHoldHours = num(q.maxHoldHours, 0, 720, "Max hold time");
+      if (q.entry !== undefined) { if (!["pullback", "breakout"].includes(q.entry)) throw new Error("Entry must be pullback or breakout"); st.entry = q.entry; }
+      if (q.exit !== undefined) { if (!["trail", "target"].includes(q.exit)) throw new Error("Exit must be trail or target"); st.exit = q.exit; }
+      if (q.trailR !== undefined) st.trailR = num(q.trailR, 1, 6, "Trailing distance");
+      if (q.breakevenR !== undefined) st.breakevenR = num(q.breakevenR, 0, 5, "Breakeven trigger");
+      if (q.beLock !== undefined) st.beLock = num(q.beLock, 0, 0.02, "Breakeven lock");
     }
   }
   start(a) {
@@ -189,10 +195,11 @@ export class Bot {
       entry = fs.avg; cost = fs.quote + fs.feeQuote; qty = +floorToStep(fs.netQty, f.step);
     } else { const px = this.prices[sym] || sig.price; entry = px * (1 + SLIP); cost = size; qty = size * (1 - FEE) / entry; }
     const stopDist = Math.min(sig.stopDist, entry * s.strategy.maxStopPct / 100);
-    const pos = { id: uid(), symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
+    const trail = s.strategy.exit === "trail";
+    const pos = { id: uid(), symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: trail ? null : entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
     b.positions.push(pos); this.saveBook(a);
     if (live) await this.placeStop(pos, f);
-    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)`, a);
+    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), ${trail ? `trailing stop starts at +${round(stopDist / entry * 100, 1)}%` : `target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)`}`, a);
   }
   async placeStop(pos, f) {
     f = f || (await this.api.loadFilters([pos.symbol]))[pos.symbol];
@@ -223,7 +230,7 @@ export class Bot {
     const before = pos.stop, m = manage(pos, { high: px, low: px, price: px }, { ...SDEF, ...s.strategy });
     if (m.exit) return this.close(a, pos, m.reason);
     if (pos.stop !== before) {
-      this.log("info", `${pos.symbol}: price is up, stop-loss moved to breakeven (${fmtPx(pos.stop)})`, a);
+      this.log("info", `${pos.symbol}: price is up, stop-loss ${m.moved.includes("trail") ? "trailed up" : "moved to breakeven"} (${fmtPx(pos.stop)}, ${pos.stop >= pos.entry ? "+" : ""}${round((pos.stop / pos.entry - 1) * 100, 1)}% from the buy price)`, a);
       if (live) { const c = await this.cancelStop(pos); if (c.filled) return this.fromStopOrder(pos, c.order); await this.placeStop(pos); }
     }
     this.saveBook(a);
@@ -273,19 +280,49 @@ export class Bot {
     };
   }
   publicSettings() { const s = this.settings; return { ...s, keys: { key: this.secrets.key ? this.secrets.key.slice(0, 6) + "…" + this.secrets.key.slice(-4) : "", secret: !!this.secrets.secret }, telegram: { token: !!this.secrets.tgToken, chat: this.secrets.tgChat } }; }
+  // Past candles, cached for 30 minutes so comparing strategies doesn't hammer Binance.
+  async history(sym, interval) {
+    const key = sym + "|" + interval, c = this.kcache[key];
+    if (c && Date.now() - c.at < 30 * 60e3) return c.data;
+    let all = [], end;
+    for (let i = 0; i < 3; i++) { const k = await this.api.klines(sym, interval, 1000, end); if (!k.length) break; all = k.concat(all); end = k[0].t - 1; if (k.length < 1000) break; }
+    if (all.length && all[all.length - 1].ct > Date.now()) all.pop();
+    this.kcache[key] = { at: Date.now(), data: all }; return all;
+  }
   async backtest(force = false, perTrade = 100, budget = 1000) {
     if (!force && this.bt && Date.now() - this.btAt < 30 * 60e3) return this.bt;
     const s = this.settings, res = [];
     for (const sym of s.watch) {
       try {
-        let all = [], end;
-        for (let i = 0; i < 3; i++) { const k = await this.api.klines(sym, s.strategy.interval, 1000, end); if (!k.length) break; all = k.concat(all); end = k[0].t - 1; if (k.length < 1000) break; }
-        if (all.length && all[all.length - 1].ct > Date.now()) all.pop();
+        const all = await this.history(sym, s.strategy.interval);
         res.push({ symbol: sym, candles: all.length, ...backtestSymbol(all, { ...SDEF, ...s.strategy }, { tradeSize: perTrade, fee: FEE, slip: SLIP }) });
       } catch (e) { if (e.status === 451) throw e; res.push({ symbol: sym, error: e.message }); }
     }
-    const ok = res.filter((r) => !r.error), tot = ok.reduce((x, r) => ({ trades: x.trades + r.trades, wins: x.wins + r.wins, pnl: x.pnl + r.pnl }), { trades: 0, wins: 0, pnl: 0 });
-    this.bt = { at: Date.now(), interval: s.strategy.interval, perTrade, symbols: res.map(({ list, ...r }) => r), total: { ...tot, winRate: tot.trades ? tot.wins / tot.trades * 100 : 0, pnlPctOfBudget: tot.pnl / budget * 100 }, from: Math.min(...ok.map((r) => r.from || Infinity)), to: Math.max(...ok.map((r) => r.to || 0)) };
+    const ok = res.filter((r) => !r.error), tot = ok.reduce((x, r) => ({ trades: x.trades + r.trades, wins: x.wins + r.wins, pnl: x.pnl + r.pnl, holdPnl: x.holdPnl + r.holdPnl }), { trades: 0, wins: 0, pnl: 0, holdPnl: 0 });
+    this.bt = { at: Date.now(), interval: s.strategy.interval, entry: s.strategy.entry, exit: s.strategy.exit, perTrade, symbols: res.map(({ list, ...r }) => r), total: { ...tot, maxDD: combinedDD(ok.map((r) => r.list)), winRate: tot.trades ? tot.wins / tot.trades * 100 : 0, pnlPctOfBudget: tot.pnl / budget * 100 }, from: Math.min(...ok.map((r) => r.from || Infinity)), to: Math.max(...ok.map((r) => r.to || 0)) };
     this.btAt = Date.now(); return this.bt;
+  }
+  // Runs every preset over the same coins (1h presets on ~4 months, 4h presets on ~16 months).
+  async compare(perTrade = 100, budget = 1000) {
+    const s = this.settings, rows = [];
+    for (const pr of PRESETS) {
+      const params = { ...SDEF, ...s.strategy, ...pr.p }, per = [];
+      for (const sym of s.watch) {
+        try { const all = await this.history(sym, params.interval); per.push({ symbol: sym, ...backtestSymbol(all, params, { tradeSize: perTrade, fee: FEE, slip: SLIP }) }); }
+        catch (e) { if (e.status === 451) throw e; }
+      }
+      const t = per.reduce((x, r) => ({ trades: x.trades + r.trades, wins: x.wins + r.wins, pnl: x.pnl + r.pnl, holdPnl: x.holdPnl + r.holdPnl }), { trades: 0, wins: 0, pnl: 0, holdPnl: 0 });
+      const from = Math.min(...per.map((r) => r.from || Infinity)), to = Math.max(...per.map((r) => r.to || 0));
+      rows.push({ id: pr.id, name: pr.name, desc: pr.desc, interval: params.interval, days: isFinite(from) ? Math.round((to - from) / 864e5) : 0, ...t, winRate: t.trades ? t.wins / t.trades * 100 : 0, maxDD: combinedDD(per.map((r) => r.list)), pnlPctOfBudget: t.pnl / budget * 100,
+        current: ["interval", "entry", "exit"].every((k) => s.strategy[k] === pr.p[k]) });
+    }
+    this.cmp = { at: Date.now(), perTrade, coins: s.watch.length, rows }; return this.cmp;
+  }
+  usePreset(id) {
+    const pr = PRESETS.find((x) => x.id === id); if (!pr) throw new Error("Unknown strategy");
+    const { interval, entry, exit, rr, trailR, breakevenR, maxHoldHours, beLock = SDEF.beLock } = { ...this.settings.strategy, ...pr.p };
+    this.update({ strategy: { interval, entry, exit, rr, trailR, breakevenR, maxHoldHours, beLock } });
+    this.log("info", `Strategy changed to "${pr.name}" (${pr.desc})`);
+    return this.publicSettings();
   }
 }

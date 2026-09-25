@@ -57,6 +57,8 @@ const routes = {
   "POST /api/reset-halt": (b) => { bot.resetHalt(A(b.acct)); return bot.status(A(b.acct)); },
   "POST /api/reset-demo": () => { bot.resetDemo(); return bot.status("demo"); },
   "POST /api/backtest": (b) => { const ac = bot.settings.accounts[A(b.acct)]; return bot.backtest(!!b.force, ac.perTrade, ac.budget); },
+  "POST /api/compare": (b) => { const ac = bot.settings.accounts[A(b.acct)]; return bot.compare(ac.perTrade, ac.budget); },
+  "POST /api/preset": (b) => bot.usePreset(String(b.id || "")),
   "POST /api/password": (b) => {
     if (!safeEq(hashPw(b.current || "", auth.salt), auth.hash)) throw new Error("Current password is wrong");
     const e = validPw(b.password); if (e) throw new Error(e);

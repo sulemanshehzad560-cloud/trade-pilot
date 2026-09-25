@@ -9,7 +9,7 @@
 # >>> EDIT THIS ONE LINE: put your bot server's address (see README, step 3) <<<
 [[redirects]]
   from = "/api/*"
-  to = "https://suleman-trader.duckdns.org/api/:splat"
+  to = "https://YOUR-BOT-NAME.duckdns.org/api/:splat"
   status = 200
   force = true
 

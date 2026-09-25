@@ -67,7 +67,7 @@ try {
   const sol = st.positions.find((p) => p.symbol === "SOLUSDT"), eth = st.positions.find((p) => p.symbol === "ETHUSDT");
 
   console.log("Breakeven, stop-loss and sell now");
-  mock.setPrice("SOLUSDT", sol.entry + sol.stopDist * 1.1);
+  mock.setPrice("SOLUSDT", sol.entry + sol.stopDist * 1.6);
   st = await until(async () => { const s = (await api("status?acct=live")).d, p = s.positions.find((x) => x.symbol === "SOLUSDT"); return p && p.stop >= p.entry && s; });
   ok(!!st, "stop moved to breakeven after price rose");
   const solStop = mock.state.orders.filter((o) => o.symbol === "SOLUSDT" && o.type === "STOP_LOSS_LIMIT");
@@ -100,6 +100,15 @@ try {
   console.log("Backtest");
   r = await api("backtest", { acct: "demo", force: true });
   ok(r.status === 200 && r.d.symbols.length === 3 && r.d.symbols.every((s) => !s.error), `backtest ran on 3 coins: ${r.d.total.trades} trades, ${r.d.total.pnl.toFixed(2)} USDT`);
+
+  console.log("Compare strategies");
+  r = await api("compare", { acct: "demo" });
+  ok(r.status === 200 && r.d.rows.length === 6 && r.d.rows.every((x) => isFinite(x.pnl) && isFinite(x.holdPnl)), `compared 6 strategies: ${r.status === 200 ? r.d.rows.map((x) => `${x.id} ${x.pnl.toFixed(1)}`).join(", ") : JSON.stringify(r.d)}`);
+  ok(r.d.rows.filter((x) => x.current).length === 1 && r.d.rows.find((x) => x.current).id === "pb-trail-1h", "current strategy marked (pullback + trailing, 1h)");
+  r = await api("preset", { id: "bo-trail-4h" });
+  ok(r.status === 200 && r.d.strategy.interval === "4h" && r.d.strategy.entry === "breakout" && r.d.strategy.exit === "trail", "Use this: switched to breakout + trailing on 4h");
+  ok((await api("preset", { id: "nope" })).status === 400, "unknown strategy rejected");
+  ok((await api("settings", { strategy: { exit: "moon" } })).status === 400, "invalid exit style rejected");
 
   console.log("Password");
   ok((await api("password", { current: "nope", password: "newpassword1" })).status === 400, "wrong current password rejected");
