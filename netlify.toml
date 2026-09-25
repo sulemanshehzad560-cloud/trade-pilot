@@ -1,0 +1,20 @@
+# Netlify hosts the dashboard (the installable app). The trading bot itself runs on your
+# Oracle Cloud server in the UAE, because Binance blocks US servers (where Netlify runs).
+# Netlify forwards every /api/ request to that server, so the app and the bot share one address.
+
+[build]
+  publish = "public"
+  command = ""
+
+# >>> EDIT THIS ONE LINE: put your bot server's address (see README, step 3) <<<
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-BOT-NAME.duckdns.org/api/:splat"
+  status = 200
+  force = true
+
+# Android app (PWABuilder) link check
+[[redirects]]
+  from = "/.well-known/assetlinks.json"
+  to = "/assetlinks.json"
+  status = 200

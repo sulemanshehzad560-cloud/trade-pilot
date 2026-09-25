@@ -1,0 +1,9 @@
+{
+  "name": "trade-pilot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Automated Binance spot trading bot with risk limits and a phone dashboard",
+  "scripts": { "start": "node src/server.js", "test": "node test/run.mjs" },
+  "engines": { "node": ">=18.17" }
+}
