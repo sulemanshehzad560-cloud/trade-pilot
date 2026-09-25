@@ -1,21 +1,25 @@
 // Trading engine with two accounts that run side by side:
 //   demo – pretend money on live Binance prices (no keys needed)
-//   live – real orders on your Binance Spot wallet
+//   live – real orders on Binance (USDT) or BitOasis (AED), chosen in Settings
 // Each account has its own budget, trades, profit and Start/Stop. Strategy and safety rules are shared.
+// Signals always come from Binance's public price charts (no account needed); BitOasis has no chart API.
 import { Binance, floorToStep, roundToStep, fillSummary } from "./binance.js";
-import { analyse, manage, DEFAULTS as SDEF, PRESETS } from "./strategy.js";
-import { backtestSymbol, combinedDD } from "./backtest.js";
+import { BitOasis, toPair, orderStatus } from "./bitoasis.js";
+import { analyse, manage, DEFAULTS as SDEF } from "./strategy.js";
+import { backtestSymbol } from "./backtest.js";
 import { load, save } from "./store.js";
 
 export const AED = 3.6725;
 export const ACCTS = ["demo", "live"];
-const FEE = 0.001, SLIP = 0.0005;
+const FEE = 0.001, SLIP = 0.0005, BO_FEE = 0.005, BO_BUFFER = 0.012;
+const EXCH = ["binance", "bitoasis"], EXNAME = { binance: "Binance", bitoasis: "BitOasis" };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ACCT_DEF = { running: false, budget: 150, perTrade: 50 };
 const SETTINGS_DEF = {
   accounts: { demo: { ...ACCT_DEF, budget: 1000, perTrade: 100 }, live: { ...ACCT_DEF } },
-  maxOpen: 2, dailyLossPct: 5, maxLossPct: 20, cooldownHours: 6,
+  liveExchange: "binance", maxOpen: 2, dailyLossPct: 5, maxLossPct: 20, cooldownHours: 6,
   watch: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"],
-  strategy: { interval: "1h", entry: "pullback", exit: "trail", rr: 2, trailR: 2, breakevenR: 1.5, maxStopPct: 6, maxHoldHours: 72 },
+  strategy: { interval: "1h", rr: 2, maxStopPct: 6, maxHoldHours: 72 },
 };
 const BOOK_DEF = { positions: [], trades: [], realized: 0, day: { key: "", pnl: 0 }, halt: null, lastBar: {}, cooldown: {}, equity: [] };
 const dubaiDay = (t = Date.now()) => new Date(t + 4 * 3600e3).toISOString().slice(0, 10);
@@ -25,21 +29,36 @@ const fmtPx = (x) => x >= 100 ? x.toFixed(2) : x >= 1 ? x.toFixed(4) : x.toPreci
 const NAME = { demo: "Demo", live: "LIVE" };
 
 export class Bot {
-  constructor({ base = process.env.BINANCE_BASE || "https://api.binance.com", fetchImpl } = {}) {
+  constructor({ base = process.env.BINANCE_BASE || "https://api.binance.com", boBase = process.env.BITOASIS_BASE || "https://api.bitoasis.net/v1", fetchImpl } = {}) {
     const st = load("settings", SETTINGS_DEF);
     this.settings = { ...SETTINGS_DEF, ...st, strategy: { ...SETTINGS_DEF.strategy, ...(st.strategy || {}) } };
     this.settings.accounts = { demo: { ...SETTINGS_DEF.accounts.demo, ...(st.accounts || {}).demo }, live: { ...SETTINGS_DEF.accounts.live, ...(st.accounts || {}).live } };
-    this.secrets = load("secrets", { key: "", secret: "", tgToken: "", tgChat: "" });
-    this.books = Object.fromEntries(ACCTS.map((a) => [a, { ...structuredClone(BOOK_DEF), ...load("book-" + a, BOOK_DEF) }]));
+    if (!EXCH.includes(this.settings.liveExchange)) this.settings.liveExchange = "binance";
+    this.secrets = { key: "", secret: "", tgToken: "", tgChat: "", boToken: "", ...load("secrets", {}) };
+    this.books = {}; for (const a of ACCTS) this.loadBook(a);
     this.logs = load("log", []);
-    this.base = base; this.fetchImpl = fetchImpl;
+    this.base = base; this.fetchImpl = fetchImpl; this.boBase = boBase;
     this.api = new Binance({ key: this.secrets.key, secret: this.secrets.secret, base, fetchImpl });
+    this.bo = new BitOasis({ token: this.secrets.boToken, base: boBase, fetchImpl });
+    this.boPx = {}; this.boPairs = null;
     this.scan = {}; this.scanAt = 0; this.prices = {}; this.busy = false; this.lastError = null; this.errCount = 0; this.bt = null; this.btAt = 0;
-    this.kcache = {}; this.cmp = null;
   }
   acct(a) { if (!ACCTS.includes(a)) throw new Error("Unknown account"); return this.settings.accounts[a]; }
   saveSettings() { save("settings", this.settings); }
-  saveBook(a) { save("book-" + a, this.books[a]); }
+  // The live account keeps a separate history per exchange, so USDT and AED results never mix.
+  bookKey(a) { return a === "live" && this.settings.liveExchange === "bitoasis" ? "book-live-bitoasis" : "book-" + a; }
+  loadBook(a) { this.books[a] = { ...structuredClone(BOOK_DEF), ...load(this.bookKey(a), BOOK_DEF) }; }
+  saveBook(a) { save(this.bookKey(a), this.books[a]); }
+  isBO(a) { return a === "live" && this.settings.liveExchange === "bitoasis"; }
+  ccy(a) { return this.isBO(a) ? "AED" : "USDT"; }
+  exName(a) { return a === "live" ? EXNAME[this.settings.liveExchange] : "Demo"; }
+  minTrade(a) { return this.isBO(a) ? 25 : 6; }
+  hasKeys(a) { return a !== "live" || (this.isBO(a) ? this.bo.hasKeys : this.api.hasKeys); }
+  // Price used to value/manage a position: BitOasis bid (what you'd get selling) or Binance last price.
+  pxOf(p) { if (p.ex === "bitoasis") { const t = this.boPx[p.symbol]; return t ? t.bid : undefined; } return this.prices[p.symbol]; }
+  feeOf(p) { return p.ex === "bitoasis" ? BO_FEE : FEE; }
+  // One trading action at a time (the loop, "Sell now" and "Sell all" never overlap).
+  async exclusive(fn) { const t = Date.now(); while (this.busy) { if (Date.now() - t > 60e3) throw new Error("The bot is busy, try again in a minute"); await sleep(150); } this.busy = true; try { return await fn(); } finally { this.busy = false; } }
   log(level, msg, a) {
     const e = { t: Date.now(), level, msg, acct: a || null }; this.logs.push(e); if (this.logs.length > 500) this.logs.splice(0, this.logs.length - 500);
     save("log", this.logs); console.log(`[${new Date().toISOString()}] ${level.toUpperCase()}${a ? " " + NAME[a] : ""} ${msg}`);
@@ -50,15 +69,20 @@ export class Bot {
     try { const r = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: tgChat, text: `🤖 Trade Pilot\n${text}` }), signal: AbortSignal.timeout(8000) }); return r.ok; }
     catch { return false; }
   }
-  setKeys({ key, secret }) {
+  setKeys({ key, secret, boToken }) {
     if (key !== undefined && key !== "") this.secrets.key = String(key).trim();
     if (secret !== undefined && secret !== "") this.secrets.secret = String(secret).trim();
+    if (boToken !== undefined && boToken !== "") this.secrets.boToken = String(boToken).trim().replace(/^Bearer\s+/i, "");
     save("secrets", this.secrets, true);
     this.api = new Binance({ key: this.secrets.key, secret: this.secrets.secret, base: this.base, fetchImpl: this.fetchImpl });
+    this.bo = new BitOasis({ token: this.secrets.boToken, base: this.boBase, fetchImpl: this.fetchImpl });
   }
-  removeKeys() {
-    if (this.books.live.positions.length) throw new Error("Close the open live trades first");
-    this.stop("live", "API keys removed"); this.secrets.key = ""; this.secrets.secret = ""; save("secrets", this.secrets, true); this.setKeys({});
+  removeKeys(which = "binance") {
+    const current = this.settings.liveExchange === which;
+    if (current && this.books.live.positions.length) throw new Error("Close the open live trades first");
+    if (current && this.acct("live").running) this.stop("live", `${EXNAME[which]} keys removed`);
+    if (which === "bitoasis") this.secrets.boToken = ""; else { this.secrets.key = ""; this.secrets.secret = ""; }
+    save("secrets", this.secrets, true); this.setKeys({});
   }
   setTelegram({ token, chat }) { if (token) this.secrets.tgToken = String(token).trim(); if (chat !== undefined) this.secrets.tgChat = String(chat).trim(); save("secrets", this.secrets, true); }
 
@@ -66,8 +90,19 @@ export class Bot {
   // All-or-nothing: changes are checked on a copy, and only saved if every value is valid.
   update(p) {
     const copy = structuredClone(this.settings), before = { watch: copy.watch.join(), interval: copy.strategy.interval };
+    const ex = p.liveExchange, switching = ex !== undefined && ex !== copy.liveExchange;
+    if (switching) {
+      if (!EXCH.includes(ex)) throw new Error("Unknown exchange");
+      if (this.books.live.positions.length) throw new Error("Close the open live trades before changing exchange");
+      if (copy.accounts.live.running) throw new Error("Stop the live bot before changing exchange");
+      // Keep the same real-money size when the currency changes (1 USDT ≈ 3.67 AED)
+      const k = ex === "bitoasis" ? AED : 1 / AED, r = (x) => Math.max(ex === "bitoasis" ? 25 : 6, Math.round(x * k / 5) * 5 || 0);
+      if (!(p.accounts && p.accounts.live)) { copy.accounts.live.budget = r(copy.accounts.live.budget); copy.accounts.live.perTrade = Math.min(r(copy.accounts.live.perTrade), copy.accounts.live.budget); }
+      copy.liveExchange = ex;
+    }
     this._apply(copy, p);
     this.settings = copy;
+    if (switching) { this.loadBook("live"); this.boPx = {}; this.scanAt = 0; this.log("info", `Live account now trades on ${EXNAME[ex]} (${this.ccy("live")})`, "live"); }
     if (copy.watch.join() !== before.watch || copy.strategy.interval !== before.interval) { this.scanAt = 0; this.scan = {}; }
     this.bt = null; this.saveSettings();
   }
@@ -76,7 +111,8 @@ export class Bot {
     for (const a of ACCTS) {
       const q = p.accounts && p.accounts[a]; if (!q) continue; const t = s.accounts[a];
       if (q.budget !== undefined) t.budget = num(q.budget, 10, 1e7, `${NAME[a]} budget`);
-      if (q.perTrade !== undefined) t.perTrade = num(q.perTrade, 6, 1e7, `${NAME[a]} amount per trade`);
+      const min = a === "live" && s.liveExchange === "bitoasis" ? 25 : 6;
+      if (q.perTrade !== undefined) t.perTrade = num(q.perTrade, min, 1e7, `${NAME[a]} amount per trade`);
       if (t.perTrade > t.budget) throw new Error(`${NAME[a]}: amount per trade can't be more than the budget`);
     }
     if (p.maxOpen !== undefined) s.maxOpen = Math.round(num(p.maxOpen, 1, 10, "Max open trades"));
@@ -94,17 +130,12 @@ export class Bot {
       if (q.rr !== undefined) st.rr = num(q.rr, 1, 5, "Reward:risk");
       if (q.maxStopPct !== undefined) st.maxStopPct = num(q.maxStopPct, 1, 20, "Max stop-loss");
       if (q.maxHoldHours !== undefined) st.maxHoldHours = num(q.maxHoldHours, 0, 720, "Max hold time");
-      if (q.entry !== undefined) { if (!["pullback", "breakout"].includes(q.entry)) throw new Error("Entry must be pullback or breakout"); st.entry = q.entry; }
-      if (q.exit !== undefined) { if (!["trail", "target"].includes(q.exit)) throw new Error("Exit must be trail or target"); st.exit = q.exit; }
-      if (q.trailR !== undefined) st.trailR = num(q.trailR, 1, 6, "Trailing distance");
-      if (q.breakevenR !== undefined) st.breakevenR = num(q.breakevenR, 0, 5, "Breakeven trigger");
-      if (q.beLock !== undefined) st.beLock = num(q.beLock, 0, 0.02, "Breakeven lock");
     }
   }
   start(a) {
     const b = this.books[a];
     if (b.halt && b.halt.type === "maxloss") throw new Error("The max-loss limit was hit. Review your settings and tap Reset limit first.");
-    if (a === "live" && !this.api.hasKeys) throw new Error("Add your Binance API keys in Settings first");
+    if (!this.hasKeys(a)) throw new Error(this.isBO(a) ? "Add your BitOasis API token in Settings first" : "Add your Binance API keys in Settings first");
     this.acct(a).running = true; this.saveSettings(); this.log("info", "Bot started", a);
   }
   stop(a, reason = "Stopped by you") { this.acct(a).running = false; this.saveSettings(); this.log("info", `Bot stopped (${reason}). Open trades stay protected by their stop-loss.`, a); }
@@ -114,7 +145,13 @@ export class Bot {
     this.books.demo = structuredClone(BOOK_DEF); this.saveBook("demo"); this.log("info", "Demo account reset to a fresh start", "demo");
   }
 
-  async testKeys() {
+  async testKeys(which = this.settings.liveExchange) {
+    if (which === "bitoasis") {
+      try {
+        const b = await this.bo.balances(), coins = Object.entries(b).filter(([c, v]) => c !== "AED" && v > 0).map(([c, v]) => `${c} ${+v.toPrecision(6)}`);
+        return { ok: true, exchange: "bitoasis", ccy: "AED", free: b.AED || 0, coins, warn: ["Make sure this token has NO withdrawal permission. It only needs trading and balance access."] };
+      } catch (e) { return { ok: false, exchange: "bitoasis", error: e.message }; }
+    }
     try {
       const acc = await this.api.account();
       const usdt = (acc.balances || []).find((x) => x.asset === "USDT");
@@ -123,7 +160,7 @@ export class Bot {
       if (r && r.enableWithdrawals) warn.push("This key can WITHDRAW funds. Edit it on Binance and untick 'Enable Withdrawals'.");
       if (r && r.ipRestrict === false) warn.push("This key isn't locked to your server's IP. Restricting it makes it much safer.");
       if (acc.canTrade === false || (r && r.enableSpotAndMarginTrading === false)) return { ok: false, error: "This key doesn't have 'Enable Spot & Margin Trading' switched on." };
-      return { ok: true, usdt: usdt ? +usdt.free : 0, warn };
+      return { ok: true, exchange: "binance", ccy: "USDT", usdt: usdt ? +usdt.free : 0, free: usdt ? +usdt.free : 0, warn };
     } catch (e) { return { ok: false, error: e.message }; }
   }
 
@@ -137,6 +174,11 @@ export class Bot {
       if (Date.now() - this.scanAt > 5 * 60e3) await this.doScan();
       const syms = [...new Set([...this.settings.watch, ...ACCTS.flatMap((a) => this.books[a].positions.map((p) => p.symbol))])];
       this.prices = { ...this.prices, ...(await this.api.prices(syms)) };
+      const boPos = this.books.live.positions.filter((p) => p.ex === "bitoasis");
+      if (this.isBO("live") && (this.acct("live").running || boPos.length)) {
+        const want = [...new Set([...(this.acct("live").running ? this.settings.watch.filter((x) => this.onBO(x) !== false) : []), ...boPos.map((p) => p.symbol)])];
+        try { Object.assign(this.boPx, await this.bo.prices(want)); } catch (e) { this.log("error", e.message, "live"); }
+      }
       for (const a of ACCTS) {
         for (const p of [...this.books[a].positions]) { try { await this.managePos(a, p); } catch (e) { this.log("error", `${p.symbol}: ${e.message}`, a); } }
         this.checkLimits(a);
@@ -154,15 +196,20 @@ export class Bot {
         out[sym] = { symbol: sym, ...analyse(k, { ...SDEF, ...s.strategy }), at: now };
       } catch (e) { if (e.status === 451) throw e; out[sym] = { symbol: sym, status: "error", label: "Couldn't load", reasons: [e.message], score: 0, at: now }; }
     }
+    if (this.isBO("live")) {
+      try { this.boPairs = await this.bo.listPairs(); } catch { /* keep the last known list */ }
+      for (const r of Object.values(out)) r.onBO = this.onBO(r.symbol);
+    }
     this.scan = out; this.scanAt = now;
   }
-  unrealized(a) { return this.books[a].positions.reduce((x, p) => { const px = this.prices[p.symbol] ?? p.entry; return x + (p.qty * px * (1 - FEE) - p.cost); }, 0); }
+  onBO(sym) { return this.boPairs && this.boPairs.size ? this.boPairs.has(toPair(sym)) : null; }
+  unrealized(a) { return this.books[a].positions.reduce((x, p) => { const px = this.pxOf(p) ?? p.entry; return x + (p.qty * px * (1 - this.feeOf(p)) - p.cost); }, 0); }
   checkLimits(a) {
     const b = this.books[a], s = this.settings, bud = this.acct(a).budget;
-    if (!b.halt && b.day.pnl <= -bud * s.dailyLossPct / 100) { b.halt = { type: "daily", at: Date.now(), reason: `Daily loss limit reached (${round(b.day.pnl)} USDT). No new trades until tomorrow.` }; this.saveBook(a); this.log("alert", b.halt.reason, a); }
+    if (!b.halt && b.day.pnl <= -bud * s.dailyLossPct / 100) { b.halt = { type: "daily", at: Date.now(), reason: `Daily loss limit reached (${round(b.day.pnl)} ${this.ccy(a)}). No new trades until tomorrow.` }; this.saveBook(a); this.log("alert", b.halt.reason, a); }
     const total = b.realized + this.unrealized(a);
     if ((!b.halt || b.halt.type !== "maxloss") && total <= -bud * s.maxLossPct / 100) {
-      b.halt = { type: "maxloss", at: Date.now(), reason: `Max loss limit reached (${round(total)} USDT). Bot stopped.` }; this.saveBook(a);
+      b.halt = { type: "maxloss", at: Date.now(), reason: `Max loss limit reached (${round(total)} ${this.ccy(a)}). Bot stopped.` }; this.saveBook(a);
       if (this.acct(a).running) { this.acct(a).running = false; this.saveSettings(); }
       this.log("alert", b.halt.reason + " Open trades keep their stop-loss.", a);
     }
@@ -171,17 +218,20 @@ export class Bot {
   async lookForEntries(a) {
     const b = this.books[a], s = this.settings, now = Date.now();
     if (b.positions.length >= s.maxOpen) return;
+    const bo = this.isBO(a);
     const cands = Object.values(this.scan).filter((x) => x.signal && now - x.at < 10 * 60e3 && !b.positions.some((p) => p.symbol === x.symbol) && b.lastBar[x.symbol] !== x.bar && !(b.cooldown[x.symbol] > now)).sort((x, y) => y.score - x.score);
     for (const sig of cands) {
       if (b.positions.length >= s.maxOpen) break;
       const avail = this.capital(a) - b.positions.reduce((x, p) => x + p.cost, 0), size = Math.min(this.acct(a).perTrade, avail);
       b.lastBar[sig.symbol] = sig.bar;
-      if (size < 6) { this.log("info", `${sig.symbol}: buy signal skipped, only ${round(avail)} USDT of budget left`, a); this.saveBook(a); continue; }
+      if (bo && this.onBO(sig.symbol) === false) { this.log("info", `${toPair(sig.symbol)}: buy signal skipped, this coin isn't traded on BitOasis`, a); this.saveBook(a); continue; }
+      if (size < this.minTrade(a)) { this.log("info", `${sig.symbol}: buy signal skipped, only ${round(avail)} ${this.ccy(a)} of budget left`, a); this.saveBook(a); continue; }
       try { await this.open(a, sig, size); } catch (e) { this.log("error", `${sig.symbol}: couldn't buy. ${e.message}`, a); }
       this.saveBook(a);
     }
   }
   async open(a, sig, size) {
+    if (this.isBO(a)) return this.boOpen(a, sig, size);
     const s = this.settings, b = this.books[a], sym = sig.symbol, live = a === "live";
     const f = (await this.api.loadFilters([sym]))[sym];
     if (!f || f.status !== "TRADING") throw new Error("Not tradable right now");
@@ -195,13 +245,13 @@ export class Bot {
       entry = fs.avg; cost = fs.quote + fs.feeQuote; qty = +floorToStep(fs.netQty, f.step);
     } else { const px = this.prices[sym] || sig.price; entry = px * (1 + SLIP); cost = size; qty = size * (1 - FEE) / entry; }
     const stopDist = Math.min(sig.stopDist, entry * s.strategy.maxStopPct / 100);
-    const trail = s.strategy.exit === "trail";
-    const pos = { id: uid(), symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: trail ? null : entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
+    const pos = { id: uid(), ex: live ? "binance" : "demo", symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
     b.positions.push(pos); this.saveBook(a);
     if (live) await this.placeStop(pos, f);
-    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), ${trail ? `trailing stop starts at +${round(stopDist / entry * 100, 1)}%` : `target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)`}`, a);
+    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)`, a);
   }
   async placeStop(pos, f) {
+    if (pos.ex === "bitoasis") return this.boPlaceStop(pos);
     f = f || (await this.api.loadFilters([pos.symbol]))[pos.symbol];
     if (!f.stopOk) { this.log("info", `${pos.symbol}: exchange stop orders not supported; the bot watches the stop itself`, "live"); return; }
     const qty = floorToStep(pos.qty, f.step), stopPrice = roundToStep(pos.stop, f.tick), price = roundToStep(pos.stop * 0.995, f.tick);
@@ -211,6 +261,7 @@ export class Bot {
   }
   async cancelStop(pos) {
     if (!pos.stopOrderId) return { filled: false };
+    if (pos.ex === "bitoasis") return this.boCancelStop(pos);
     try { await this.api.cancelOrder(pos.symbol, pos.stopOrderId); pos.stopOrderId = null; return { filled: false }; }
     catch (e) {
       const o = await this.api.getOrder(pos.symbol, pos.stopOrderId).catch(() => null);
@@ -218,11 +269,15 @@ export class Bot {
       pos.stopOrderId = null; return { filled: false };
     }
   }
-  fromStopOrder(pos, o) { const q = +o.executedQty, qt = +o.cummulativeQuoteQty; return this.record("live", pos, qt / q, qt * (1 - FEE), "Stop-loss (on Binance)"); }
+  fromStopOrder(pos, o) { if (pos.ex === "bitoasis") return this.boFromStop(pos, o); const q = +o.executedQty, qt = +o.cummulativeQuoteQty; return this.record("live", pos, qt / q, qt * (1 - FEE), "Stop-loss (on Binance)"); }
   async managePos(a, pos) {
-    const s = this.settings, live = a === "live", px = this.prices[pos.symbol];
+    const s = this.settings, live = a === "live", px = this.pxOf(pos);
     if (!px) return;
-    if (live && pos.stopOrderId) {
+    if (live && pos.ex === "bitoasis" && pos.stopOrderId) {
+      let st = ""; try { st = orderStatus(await this.bo.getOrder(pos.stopOrderId)); } catch {}
+      if (st === "DONE" || st === "FILLED") return this.boFromStop(pos, null);
+      if (st === "CANCELED" || st === "CANCELLED" || st === "REJECTED") { pos.stopOrderId = null; this.log("info", `${pos.pair}: exchange stop was ${st.toLowerCase()}; placing it again`, a); await this.boPlaceStop(pos); }
+    } else if (live && pos.stopOrderId) {
       const o = await this.api.getOrder(pos.symbol, pos.stopOrderId).catch(() => null);
       if (o && o.status === "FILLED") return this.fromStopOrder(pos, o);
       if (o && ["CANCELED", "EXPIRED", "REJECTED"].includes(o.status)) { pos.stopOrderId = null; this.log("info", `${pos.symbol}: exchange stop was ${o.status.toLowerCase()}; placing it again`, a); await this.placeStop(pos); }
@@ -230,12 +285,13 @@ export class Bot {
     const before = pos.stop, m = manage(pos, { high: px, low: px, price: px }, { ...SDEF, ...s.strategy });
     if (m.exit) return this.close(a, pos, m.reason);
     if (pos.stop !== before) {
-      this.log("info", `${pos.symbol}: price is up, stop-loss ${m.moved.includes("trail") ? "trailed up" : "moved to breakeven"} (${fmtPx(pos.stop)}, ${pos.stop >= pos.entry ? "+" : ""}${round((pos.stop / pos.entry - 1) * 100, 1)}% from the buy price)`, a);
+      this.log("info", `${pos.symbol}: price is up, stop-loss moved to breakeven (${fmtPx(pos.stop)})`, a);
       if (live) { const c = await this.cancelStop(pos); if (c.filled) return this.fromStopOrder(pos, c.order); await this.placeStop(pos); }
     }
     this.saveBook(a);
   }
   async close(a, pos, reason) {
+    if (pos.ex === "bitoasis") return this.boClose(a, pos, reason);
     if (a !== "live") { const px = (this.prices[pos.symbol] || pos.entry) * (1 - SLIP); return this.record(a, pos, px, pos.qty * px * (1 - FEE), reason); }
     const c = await this.cancelStop(pos); if (c.filled) return this.fromStopOrder(pos, c.order);
     const f = (await this.api.loadFilters([pos.symbol]))[pos.symbol];
@@ -256,73 +312,111 @@ export class Bot {
     b.realized += pnl; b.day.pnl += pnl; b.equity.push({ t: t.closedAt, v: round(b.realized, 4) }); if (b.equity.length > 1000) b.equity.shift();
     if (pnl < 0 && this.settings.cooldownHours) b.cooldown[pos.symbol] = Date.now() + this.settings.cooldownHours * 3600e3;
     this.saveBook(a);
-    this.log("trade", `SOLD ${pos.symbol} at ${fmtPx(exitPx)}: ${pnl >= 0 ? "+" : ""}${round(pnl)} USDT (${pnl >= 0 ? "+" : ""}${round(t.pct, 1)}%) · ${reason}`, a);
+    this.log("trade", `SOLD ${pos.pair || pos.symbol} at ${fmtPx(exitPx)}: ${pnl >= 0 ? "+" : ""}${round(pnl)} ${this.ccy(a)} (${pnl >= 0 ? "+" : ""}${round(t.pct, 1)}%) · ${reason}`, a);
     return t;
   }
-  async closeOne(a, id) { const p = this.books[a].positions.find((x) => x.id === id); if (!p) throw new Error("Trade not found"); if (!this.prices[p.symbol]) this.prices[p.symbol] = await this.api.price(p.symbol); return this.close(a, p, "Sold by you"); }
-  async sellAll(a) {
-    this.stop(a, "Stop & sell all"); const out = [];
-    for (const p of [...this.books[a].positions]) { try { if (!this.prices[p.symbol]) this.prices[p.symbol] = await this.api.price(p.symbol); out.push(await this.close(a, p, "Sold by you (sell all)")); } catch (e) { this.log("error", `${p.symbol}: couldn't sell. ${e.message}`, a); } }
-    return out;
+  async freshPx(p) {
+    if (p.ex === "bitoasis") { this.boPx[p.symbol] = await this.bo.ticker(p.pair); return; }
+    if (!this.prices[p.symbol]) this.prices[p.symbol] = await this.api.price(p.symbol);
+  }
+  closeOne(a, id) {
+    return this.exclusive(async () => { const p = this.books[a].positions.find((x) => x.id === id); if (!p) throw new Error("Trade not found (maybe it was just sold)"); await this.freshPx(p); return this.close(a, p, "Sold by you"); });
+  }
+  sellAll(a) {
+    this.stop(a, "Stop & sell all");
+    return this.exclusive(async () => {
+      const out = [];
+      for (const p of [...this.books[a].positions]) { try { await this.freshPx(p); out.push(await this.close(a, p, "Sold by you (sell all)")); } catch (e) { this.log("error", `${p.pair || p.symbol}: couldn't sell. ${e.message}`, a); } }
+      return out;
+    });
+  }
+
+  // ---------- BitOasis (live, AED) ----------
+  // BitOasis doesn't return fill details we can rely on, so fills are measured from the
+  // wallet balance before and after each order. Orders are never retried automatically.
+  async boOpen(a, sig, size) {
+    const s = this.settings, b = this.books[a], sym = sig.symbol, pair = toPair(sym), coin = sym.replace(/USDT$/, "");
+    const t = await this.bo.ticker(pair); this.boPx[sym] = t;
+    const before = await this.bo.balances();
+    if ((before.AED || 0) < size) throw new Error(`Not enough AED in your BitOasis wallet (${round(before.AED || 0)} free, need ${size})`);
+    const o = await this.bo.order(pair, "buy", "market", size * (1 - BO_BUFFER) / t.ask);
+    const st = o.id ? await this.bo.waitDone(o.id) : "";
+    const after = await this.bo.balances();
+    let qty = (after[coin] || 0) - (before[coin] || 0), cost = (before.AED || 0) - (after.AED || 0);
+    if (!(qty > 0)) {
+      if (st === "OPEN") { try { await this.bo.cancelOrder(o.id); } catch {} throw new Error(`BitOasis didn't fill the buy order (status ${st}); it was cancelled`); }
+      qty = o.amount * (1 - BO_FEE); this.log("info", `${pair}: couldn't read the fill from your balance; using the order amount`, a);
+    }
+    if (!(cost > 0) || cost > size * 1.5) cost = o.amount * t.ask * (1 + BO_FEE);
+    const entry = cost / qty, pct = Math.min(sig.stopDist / sig.price, s.strategy.maxStopPct / 100), stopDist = entry * pct;
+    const pos = { id: uid(), ex: "bitoasis", symbol: sym, pair, base: coin, entry, qty, cost, stopDist, stop: entry - stopDist, tp: entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null, buyOrderId: o.id || null };
+    b.positions.push(pos); this.saveBook(a);
+    await this.boPlaceStop(pos);
+    this.log("trade", `BOUGHT ${pair}: ${round(cost)} AED at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(pct * 100, 1)}%), target ${fmtPx(pos.tp)} (+${round(pct * s.strategy.rr * 100, 1)}%)`, a);
+  }
+  async boPlaceStop(pos) {
+    const d = pos.stop >= 1000 ? 0 : pos.stop >= 10 ? 2 : pos.stop >= 0.1 ? 4 : 6;
+    try { const o = await this.bo.order(pos.pair, "sell", "stop", pos.qty, { stop_price: pos.stop.toFixed(d) }); pos.stopOrderId = o.id || null; this.saveBook("live"); if (!o.id) throw new Error("no order id returned"); }
+    catch (e) { this.log("error", `${pos.pair}: couldn't place the stop-loss on BitOasis (${e.message}). The bot will watch the stop itself.`, "live"); }
+  }
+  async boCancelStop(pos) {
+    try { await this.bo.cancelOrder(pos.stopOrderId); pos.stopOrderId = null; return { filled: false }; }
+    catch {
+      let st = ""; try { st = orderStatus(await this.bo.getOrder(pos.stopOrderId)); } catch {}
+      if (st === "DONE" || st === "FILLED") return { filled: true, order: null };
+      pos.stopOrderId = null; return { filled: false };
+    }
+  }
+  // The stop sold on BitOasis while we weren't looking: book it at the stop price, less fees.
+  boFromStop(pos) { return this.record("live", pos, pos.stop, pos.qty * pos.stop * (1 - BO_FEE), "Stop-loss (on BitOasis)"); }
+  async boClose(a, pos, reason) {
+    const c = await this.boCancelStop(pos); if (c.filled) return this.boFromStop(pos);
+    const t = this.boPx[pos.symbol] || await this.bo.ticker(pos.pair);
+    const before = await this.bo.balances(), qty = Math.min(pos.qty, before[pos.base] || 0);
+    if (!(qty > 0) || qty * t.bid < 10) {
+      this.log("alert", `${pos.pair}: can't sell, only ${qty} ${pos.base} left in your BitOasis wallet. Removed from the bot; check the BitOasis app.`, a);
+      return this.record(a, pos, t.bid, qty * t.bid, reason + " (not sold: too small)");
+    }
+    let o;
+    try { o = await this.bo.order(pos.pair, "sell", "market", qty); }
+    catch (e) { if (pos.ex === "bitoasis" && !pos.stopOrderId) await this.boPlaceStop(pos); throw e; }
+    if (o.id) await this.bo.waitDone(o.id);
+    const after = await this.bo.balances();
+    let proceeds = (after.AED || 0) - (before.AED || 0);
+    if (!(proceeds > 0) || proceeds > o.amount * t.bid * 1.5) proceeds = o.amount * t.bid * (1 - BO_FEE);
+    return this.record(a, pos, proceeds / o.amount / (1 - BO_FEE), proceeds, reason);
   }
 
   // ---------- reporting ----------
   status(a) {
     const b = this.books[a], ac = this.acct(a), tr = b.trades, wins = tr.filter((t) => t.pnl > 0).length;
-    const positions = b.positions.map((p) => { const px = this.prices[p.symbol] ?? p.entry, val = p.qty * px * (1 - FEE); return { ...p, price: px, value: val, pnl: val - p.cost, pct: (val / p.cost - 1) * 100 }; });
+    const positions = b.positions.map((p) => { const px = this.pxOf(p) ?? p.entry, val = p.qty * px * (1 - this.feeOf(p)); return { ...p, price: px, value: val, pnl: val - p.cost, pct: (val / p.cost - 1) * 100 }; });
     const committed = b.positions.reduce((x, p) => x + p.cost, 0);
     return {
-      acct: a, running: ac.running, halt: b.halt, hasKeys: this.api.hasKeys, tg: !!(this.secrets.tgToken && this.secrets.tgChat), aed: AED,
+      acct: a, running: ac.running, halt: b.halt, hasKeys: this.hasKeys(a), exchange: a === "live" ? this.settings.liveExchange : "demo", exName: this.exName(a), ccy: this.ccy(a), minTrade: this.minTrade(a), tg: !!(this.secrets.tgToken && this.secrets.tgChat), aed: AED,
       budget: ac.budget, perTrade: ac.perTrade, committed, available: Math.max(0, this.capital(a) - committed),
       realized: b.realized, unrealized: positions.reduce((x, p) => x + p.pnl, 0), today: b.day.pnl, trades: tr.length, wins, winRate: tr.length ? wins / tr.length * 100 : 0,
       positions, equity: b.equity.slice(-200), lastError: this.lastError, scanAt: this.scanAt,
       other: Object.fromEntries(ACCTS.map((x) => [x, { running: this.acct(x).running, open: this.books[x].positions.length, total: this.books[x].realized + this.unrealized(x), halt: !!this.books[x].halt }])),
     };
   }
-  publicSettings() { const s = this.settings; return { ...s, keys: { key: this.secrets.key ? this.secrets.key.slice(0, 6) + "…" + this.secrets.key.slice(-4) : "", secret: !!this.secrets.secret }, telegram: { token: !!this.secrets.tgToken, chat: this.secrets.tgChat } }; }
-  // Past candles, cached for 30 minutes so comparing strategies doesn't hammer Binance.
-  async history(sym, interval) {
-    const key = sym + "|" + interval, c = this.kcache[key];
-    if (c && Date.now() - c.at < 30 * 60e3) return c.data;
-    let all = [], end;
-    for (let i = 0; i < 3; i++) { const k = await this.api.klines(sym, interval, 1000, end); if (!k.length) break; all = k.concat(all); end = k[0].t - 1; if (k.length < 1000) break; }
-    if (all.length && all[all.length - 1].ct > Date.now()) all.pop();
-    this.kcache[key] = { at: Date.now(), data: all }; return all;
+  publicSettings() {
+    const s = this.settings, mask = (k) => (k ? k.slice(0, 4) + "…" + k.slice(-4) : "");
+    return { ...s, liveCcy: this.ccy("live"), keys: { key: mask(this.secrets.key), secret: !!this.secrets.secret }, bitoasis: { token: mask(this.secrets.boToken) }, telegram: { token: !!this.secrets.tgToken, chat: this.secrets.tgChat } };
   }
   async backtest(force = false, perTrade = 100, budget = 1000) {
     if (!force && this.bt && Date.now() - this.btAt < 30 * 60e3) return this.bt;
     const s = this.settings, res = [];
     for (const sym of s.watch) {
       try {
-        const all = await this.history(sym, s.strategy.interval);
+        let all = [], end;
+        for (let i = 0; i < 3; i++) { const k = await this.api.klines(sym, s.strategy.interval, 1000, end); if (!k.length) break; all = k.concat(all); end = k[0].t - 1; if (k.length < 1000) break; }
+        if (all.length && all[all.length - 1].ct > Date.now()) all.pop();
         res.push({ symbol: sym, candles: all.length, ...backtestSymbol(all, { ...SDEF, ...s.strategy }, { tradeSize: perTrade, fee: FEE, slip: SLIP }) });
       } catch (e) { if (e.status === 451) throw e; res.push({ symbol: sym, error: e.message }); }
     }
-    const ok = res.filter((r) => !r.error), tot = ok.reduce((x, r) => ({ trades: x.trades + r.trades, wins: x.wins + r.wins, pnl: x.pnl + r.pnl, holdPnl: x.holdPnl + r.holdPnl }), { trades: 0, wins: 0, pnl: 0, holdPnl: 0 });
-    this.bt = { at: Date.now(), interval: s.strategy.interval, entry: s.strategy.entry, exit: s.strategy.exit, perTrade, symbols: res.map(({ list, ...r }) => r), total: { ...tot, maxDD: combinedDD(ok.map((r) => r.list)), winRate: tot.trades ? tot.wins / tot.trades * 100 : 0, pnlPctOfBudget: tot.pnl / budget * 100 }, from: Math.min(...ok.map((r) => r.from || Infinity)), to: Math.max(...ok.map((r) => r.to || 0)) };
+    const ok = res.filter((r) => !r.error), tot = ok.reduce((x, r) => ({ trades: x.trades + r.trades, wins: x.wins + r.wins, pnl: x.pnl + r.pnl }), { trades: 0, wins: 0, pnl: 0 });
+    this.bt = { at: Date.now(), interval: s.strategy.interval, perTrade, symbols: res.map(({ list, ...r }) => r), total: { ...tot, winRate: tot.trades ? tot.wins / tot.trades * 100 : 0, pnlPctOfBudget: tot.pnl / budget * 100 }, from: Math.min(...ok.map((r) => r.from || Infinity)), to: Math.max(...ok.map((r) => r.to || 0)) };
     this.btAt = Date.now(); return this.bt;
-  }
-  // Runs every preset over the same coins (1h presets on ~4 months, 4h presets on ~16 months).
-  async compare(perTrade = 100, budget = 1000) {
-    const s = this.settings, rows = [];
-    for (const pr of PRESETS) {
-      const params = { ...SDEF, ...s.strategy, ...pr.p }, per = [];
-      for (const sym of s.watch) {
-        try { const all = await this.history(sym, params.interval); per.push({ symbol: sym, ...backtestSymbol(all, params, { tradeSize: perTrade, fee: FEE, slip: SLIP }) }); }
-        catch (e) { if (e.status === 451) throw e; }
-      }
-      const t = per.reduce((x, r) => ({ trades: x.trades + r.trades, wins: x.wins + r.wins, pnl: x.pnl + r.pnl, holdPnl: x.holdPnl + r.holdPnl }), { trades: 0, wins: 0, pnl: 0, holdPnl: 0 });
-      const from = Math.min(...per.map((r) => r.from || Infinity)), to = Math.max(...per.map((r) => r.to || 0));
-      rows.push({ id: pr.id, name: pr.name, desc: pr.desc, interval: params.interval, days: isFinite(from) ? Math.round((to - from) / 864e5) : 0, ...t, winRate: t.trades ? t.wins / t.trades * 100 : 0, maxDD: combinedDD(per.map((r) => r.list)), pnlPctOfBudget: t.pnl / budget * 100,
-        current: ["interval", "entry", "exit"].every((k) => s.strategy[k] === pr.p[k]) });
-    }
-    this.cmp = { at: Date.now(), perTrade, coins: s.watch.length, rows }; return this.cmp;
-  }
-  usePreset(id) {
-    const pr = PRESETS.find((x) => x.id === id); if (!pr) throw new Error("Unknown strategy");
-    const { interval, entry, exit, rr, trailR, breakevenR, maxHoldHours, beLock = SDEF.beLock } = { ...this.settings.strategy, ...pr.p };
-    this.update({ strategy: { interval, entry, exit, rr, trailR, breakevenR, maxHoldHours, beLock } });
-    this.log("info", `Strategy changed to "${pr.name}" (${pr.desc})`);
-    return this.publicSettings();
   }
 }

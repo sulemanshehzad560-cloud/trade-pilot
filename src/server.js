@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { Bot } from "./bot.js";
+import { Bot, AED } from "./bot.js";
 import { load, save, DATA_DIR } from "./store.js";
 
 const PORT = +process.env.PORT || 8080, HOST = process.env.HOST || "0.0.0.0";
@@ -46,9 +46,9 @@ const routes = {
   "GET /api/settings": () => bot.publicSettings(),
   "GET /api/log": (b, q) => ({ log: bot.logs.filter((l) => !q.get("acct") || !l.acct || l.acct === q.get("acct")).slice(-200).reverse() }),
   "POST /api/settings": (b) => { bot.update(b); return bot.publicSettings(); },
-  "POST /api/keys": async (b) => { bot.setKeys(b); return { ...(await bot.testKeys()), settings: bot.publicSettings() }; },
-  "POST /api/keys/test": () => bot.testKeys(),
-  "POST /api/keys/remove": () => { bot.removeKeys(); return bot.publicSettings(); },
+  "POST /api/keys": async (b) => { bot.setKeys(b); return { ...(await bot.testKeys(b.boToken ? "bitoasis" : b.key || b.secret ? "binance" : b.which)), settings: bot.publicSettings() }; },
+  "POST /api/keys/test": (b) => bot.testKeys(b.which === "bitoasis" || b.which === "binance" ? b.which : undefined),
+  "POST /api/keys/remove": (b) => { bot.removeKeys(b.which === "bitoasis" ? "bitoasis" : "binance"); return bot.publicSettings(); },
   "POST /api/telegram": async (b) => { bot.setTelegram(b); return { ok: await bot.notify("Test message: alerts are working ✅") }; },
   "POST /api/start": (b) => { bot.start(A(b.acct)); return bot.status(A(b.acct)); },
   "POST /api/stop": (b) => { bot.stop(A(b.acct)); return bot.status(A(b.acct)); },
@@ -56,9 +56,7 @@ const routes = {
   "POST /api/close": async (b) => ({ trade: await bot.closeOne(A(b.acct), b.id), status: bot.status(A(b.acct)) }),
   "POST /api/reset-halt": (b) => { bot.resetHalt(A(b.acct)); return bot.status(A(b.acct)); },
   "POST /api/reset-demo": () => { bot.resetDemo(); return bot.status("demo"); },
-  "POST /api/backtest": (b) => { const ac = bot.settings.accounts[A(b.acct)]; return bot.backtest(!!b.force, ac.perTrade, ac.budget); },
-  "POST /api/compare": (b) => { const ac = bot.settings.accounts[A(b.acct)]; return bot.compare(ac.perTrade, ac.budget); },
-  "POST /api/preset": (b) => bot.usePreset(String(b.id || "")),
+  "POST /api/backtest": (b) => { const a = A(b.acct), ac = bot.settings.accounts[a], k = bot.isBO(a) ? 1 / AED : 1; return bot.backtest(!!b.force, ac.perTrade * k, ac.budget * k); },
   "POST /api/password": (b) => {
     if (!safeEq(hashPw(b.current || "", auth.salt), auth.hash)) throw new Error("Current password is wrong");
     const e = validPw(b.password); if (e) throw new Error(e);
