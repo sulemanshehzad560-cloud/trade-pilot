@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0b1f3a">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#07080a">
@@ -109,6 +112,11 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:8px 6px
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
+  <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+  </script>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="logo" viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="#101217" stroke="#d8b25e" stroke-opacity=".5"/><path d="M9 33l9-10 7 6 13-15" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M31 14h7v7" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#b28a36"/><stop offset="1" stop-color="#f3d796"/></linearGradient></symbol>
