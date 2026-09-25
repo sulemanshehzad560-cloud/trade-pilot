@@ -6,8 +6,7 @@
 <meta name="theme-color" content="#07080a">
 <title>Trade Pilot</title>
 <link rel="icon" href="icon.svg">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{--bg:#07080a;--s1:#101217;--s2:#171a21;--line:#252932;--text:#eef0f3;--muted:#8d94a3;--gold:#d8b25e;--gold2:#f3d796;--up:#23c68b;--down:#ff6161;--amber:#f0a93b;--blue:#6ea8ff}
 *{box-sizing:border-box}
@@ -33,7 +32,7 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,
 .btn.red{background:rgba(255,97,97,.12);border-color:rgba(255,97,97,.45);color:#ff8a8a}
 .btn.green{background:linear-gradient(135deg,#43e0a4,#1fae78);border-color:transparent;color:#04130d}
 .btn.full{width:100%}.btn.sm{min-height:36px;padding:6px 12px;font-size:13.5px;border-radius:10px}
-.btn:disabled{opacity:.5;cursor:not-allowed}input:disabled{opacity:.45}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .err{color:#ff8a8a;font-size:13.5px;font-weight:600;min-height:1em;margin:10px 0 0}
 /* app */
 .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;background:rgba(7,8,10,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
@@ -57,9 +56,6 @@ main{max-width:720px;margin:0 auto;padding:14px 16px calc(96px + env(safe-area-i
 .hero .lbl{font-size:12.5px;color:var(--muted);font-weight:600}
 .hero .big{font-size:36px;font-weight:800;letter-spacing:-.5px;line-height:1.15;margin:2px 0}
 .hero .aed{font-size:13.5px;color:var(--muted)}
-.cmp{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}.cmp.best{border-color:var(--gold)}.cmp.cur{box-shadow:inset 3px 0 0 var(--blue)}
-.cmp .row b{font-size:15px}.cmp .vs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:8px 0}
-.tag{font-size:10.5px;font-weight:800;letter-spacing:.4px;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:2px}.tag.g{background:rgba(216,178,94,.16);color:var(--gold2)}.tag.b{background:rgba(110,168,255,.14);color:var(--blue)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
 .kpi{background:var(--s2);border-radius:12px;padding:9px 10px}.kpi b{display:block;font-size:16px}.kpi span{font-size:11.5px;color:var(--muted)}
 .spark{width:100%;height:64px;margin-top:10px;display:block}
@@ -120,7 +116,7 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:8px 6px
 
 <div class="gate" id="gate">
   <div class="gcard">
-    <div class="brand"><svg><use href="#logo"/></svg><div><b>Trade Pilot</b><span>Automated Binance trading</span></div></div>
+    <div class="brand"><svg><use href="#logo"/></svg><div><b>Trade Pilot</b><span>Automated crypto trading</span></div></div>
     <form id="f-setup" hidden>
       <h2>First-time setup</h2><p>Enter the 6-digit setup code shown when the server was installed, then create your password.</p>
       <label for="su-code">Setup code</label><input type="text" id="su-code" inputmode="numeric" autocomplete="one-time-code">
@@ -172,8 +168,6 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:8px 6px
   <div class="card"><h3>Backtest</h3><p class="small mut" style="margin:0 0 12px">Replays your exact strategy and settings on the last few months of real Binance prices, including fees. Past results don't guarantee future profit, but a strategy that loses here will probably lose live too.</p>
   <button class="btn gold full" id="bt-run">Run backtest</button></div>
   <div id="bt-out"></div>
-  <div class="card"><h3>Compare strategies</h3><p class="small mut" style="margin:0 0 12px">Tests 6 strategy styles on your coins with the same fees, and compares each one with just holding the coins. 1-hour styles use about 4 months of prices; 4-hour styles use about 16 months, which includes falling markets too.</p>
-  <button class="btn full" id="cmp-run">Compare strategies</button><div id="cmp-out"></div></div>
 </section>
 <!-- SETTINGS -->
 <section class="view" id="v-set" hidden>
@@ -182,9 +176,15 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:8px 6px
     <p class="hint">Trades on live prices with fees, no Binance account needed. Runs alongside Live, so you can compare.</p>
     <button class="btn sm" id="d-reset" style="margin-top:10px">Reset demo account</button></div>
   <div class="card"><h3>Live account <span class="chip avoid" style="margin-left:6px">real money</span></h3>
-    <div class="g2"><div><label for="c-budget">Live budget (USDT)</label><input type="number" id="c-budget" inputmode="decimal" min="10"></div><div><label for="c-per">Per trade (USDT)</label><input type="number" id="c-per" inputmode="decimal" min="6"></div></div>
+    <label>Exchange for real trades</label><div class="chips" id="c-ex"><button type="button" data-v="binance">Binance · USDT</button><button type="button" data-v="bitoasis">BitOasis · AED</button></div>
+    <p class="hint" id="c-exhint" style="margin-top:6px"></p>
+    <div class="g2"><div><label for="c-budget">Live budget (<span class="lccy">USDT</span>)</label><input type="number" id="c-budget" inputmode="decimal" min="10"></div><div><label for="c-per">Per trade (<span class="lccy">USDT</span>)</label><input type="number" id="c-per" inputmode="decimal" min="6"></div></div>
     <p class="hint num" id="c-aed"></p></div>
-  <div class="card"><h3>Binance API key</h3>
+  <div class="card" id="bo-card" hidden><h3>BitOasis API token</h3>
+    <label for="bo-tok">API token</label><input type="password" id="bo-tok" autocomplete="new-password" spellcheck="false" autocapitalize="none" placeholder="Paste your BitOasis token">
+    <div class="actions" style="margin:12px 0 0"><button class="btn gold" id="bo-save">Save & test</button><button class="btn" id="bo-rm">Remove token</button></div><div id="bo-res" class="small" style="margin-top:10px"></div>
+    <p class="hint">Create it on the BitOasis website: <b>Settings › Security › Token Management</b>. Allow trading and balance access only, <b>never withdrawals</b>. Keep AED in your BitOasis wallet for the live budget.</p></div>
+  <div class="card" id="bn-card"><h3>Binance API key</h3>
     <label for="k-key">API key</label><input type="text" id="k-key" autocomplete="off" spellcheck="false" autocapitalize="none">
     <label for="k-sec">Secret key</label><input type="password" id="k-sec" autocomplete="new-password" spellcheck="false" placeholder="Leave empty to keep the saved one">
     <div class="actions" style="margin:12px 0 0"><button class="btn gold" id="k-save">Save & test</button><button class="btn" id="k-rm">Remove keys</button></div><div id="k-res" class="small" style="margin-top:10px"></div>
@@ -195,13 +195,9 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:8px 6px
     <p class="hint">Percentages are of each account's budget. If today's losses reach the daily limit, the bot stops buying until tomorrow. If total losses reach the max, the bot stops completely until you reset it.</p></div>
   <div class="card"><h3>Strategy</h3>
     <label>Candle timeframe</label><div class="chips" id="c-int"><button type="button" data-v="15m">15 min</button><button type="button" data-v="1h">1 hour</button><button type="button" data-v="4h">4 hours</button></div>
-    <label>Buy when</label><div class="chips" id="c-entry"><button type="button" data-v="pullback">Dip in uptrend</button><button type="button" data-v="breakout">Breakout in uptrend</button></div>
-    <label>Sell with</label><div class="chips" id="c-exit"><button type="button" data-v="trail">Trailing stop</button><button type="button" data-v="target">Fixed target</button></div>
-    <p class="hint" id="c-exit-hint"></p>
-    <label for="c-trail">Trailing distance (× the first stop)</label><input type="number" id="c-trail" step="0.5" min="1" max="6">
     <div class="g2"><div><label for="c-rr">Target ÷ stop (reward:risk)</label><input type="number" id="c-rr" step="0.5" min="1" max="5"></div><div><label for="c-mstop">Max stop-loss (%)</label><input type="number" id="c-mstop" step="0.5" min="1" max="20"></div></div>
     <label for="c-hold">Sell if no progress after (hours, 0 = never)</label><input type="number" id="c-hold" min="0">
-    <label for="c-watch">Coins to watch (vs USDT)</label><input type="text" id="c-watch" autocapitalize="characters" spellcheck="false" placeholder="BTC, ETH, SOL">
+    <label for="c-watch">Coins to watch</label><input type="text" id="c-watch" autocapitalize="characters" spellcheck="false" placeholder="BTC, ETH, SOL">
     <button class="btn gold full" style="margin-top:14px" id="c-save">Save settings</button><p class="err" id="c-err"></p></div>
   <div class="card"><h3>Telegram alerts (free, optional)</h3><p class="hint" style="margin-top:0">Get a message for every buy, sell and warning. Create a bot with @BotFather, then send it a message and get your chat ID from @userinfobot.</p>
     <label for="tg-tok">Bot token</label><input type="password" id="tg-tok" autocomplete="off" placeholder="Leave empty to keep the saved one">
@@ -242,6 +238,8 @@ const cls=x=>x>0.004?"up":x<-0.004?"down":"";
 const px=x=>x>=100?usd(x,2):x>=1?x.toFixed(4):(+x).toPrecision(4);
 const ago=t=>{if(!t)return"";const s=Math.round((Date.now()-t)/1000);return s<60?"just now":s<3600?Math.round(s/60)+" min ago":s<86400?Math.round(s/3600)+" h ago":Math.round(s/86400)+" d ago"};
 const coin=s=>s.replace(/USDT$/,"");
+const CC=s=>(s&&s.ccy)||"USDT";
+const inAed=(s,x,d=0)=>CC(s)==="AED"?"":` (≈ ${usd(x*s.aed,d)} AED)`;
 const dt=t=>new Date(t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 function confirmBox(title,html,okText,danger){return new Promise(res=>{$("#mbox").innerHTML=`<h3>${title}</h3><div class="small" style="color:#c9ced8">${html}</div><div class="actions" style="margin:16px 0 0"><button class="btn" id="m-no">Cancel</button><button class="btn ${danger?"red":"gold"}" id="m-ok">${okText}</button></div>`;$("#modal").hidden=false;
   const done=v=>{$("#modal").hidden=true;res(v)};$("#m-no").onclick=()=>done(false);$("#m-ok").onclick=()=>{const c=$("#m-chk");if(c&&!c.checked){toast("Tick the box to confirm");return}done(true)}})}
@@ -265,43 +263,43 @@ $$("[data-acct]").forEach(b=>b.onclick=()=>setAcct(b.dataset.acct));
 function renderHome(){const s=ST,live=s.acct==="live",total=s.realized+s.unrealized;
   $$("[data-acct]").forEach(b=>{const a=b.dataset.acct,o=s.other[a];b.setAttribute("aria-selected",a===ACCT);b.classList.toggle("on",o.running);b.querySelector("small").textContent=(o.total?sgn(o.total):"")+(o.halt?" ⚠":"");b.querySelector("small").className=cls(o.total)});
   $("#p-run").className="pill"+(s.running?" on":"");$("#p-run").querySelector("span").textContent=s.running?"Running":"Stopped";
-  $("#h-total").innerHTML=`<span class="${cls(total)}">${sgn(total)}</span> <span style="font-size:18px;color:var(--muted);font-weight:700">USDT</span>`;
-  $("#h-aed").textContent=`≈ ${sgn(total*s.aed)} AED · closed ${sgn(s.realized)} · open ${sgn(s.unrealized)}`;
+  $("#h-total").innerHTML=`<span class="${cls(total)}">${sgn(total)}</span> <span style="font-size:18px;color:var(--muted);font-weight:700">${CC(s)}</span>`;
+  $("#h-aed").textContent=`${CC(s)==="AED"?"On BitOasis":"≈ "+sgn(total*s.aed)+" AED"} · closed ${sgn(s.realized)} · open ${sgn(s.unrealized)}`;
   $("#h-today").textContent=sgn(s.today);$("#h-today").className="num "+cls(s.today);$("#h-win").textContent=s.trades?Math.round(s.winRate)+"%":"—";$("#h-trades").textContent=s.trades;
   $("#h-upd").textContent=s.scanAt?"scanned "+ago(s.scanAt):"";
   spark(s.equity);
   const b=[];
   if(s.halt)b.push(`<div class="banner bad"><div style="flex:1"><b>${s.halt.type==="daily"?"Paused for today":"Stopped: max loss reached"}</b><br>${esc(s.halt.reason)}</div>${s.halt.type==="maxloss"?'<button class="btn sm" id="b-reset">Reset limit</button>':""}</div>`);
-  if(live&&!s.hasKeys)b.push(`<div class="banner warn">Add your Binance API keys in Settings.</div>`);
+  if(live&&!s.hasKeys)b.push(`<div class="banner warn">${s.exchange==="bitoasis"?"Add your BitOasis API token in Settings.":"Add your Binance API keys in Settings."}</div>`);
   if(!live&&!s.trades&&!s.positions.length)b.push(`<div class="banner info"><div><b>Demo account.</b> The bot trades ${usd(s.budget,0)} USDT of pretend money on real Binance prices. Press Start and compare it with Live over the next days.</div></div>`);
-  if(live&&s.hasKeys&&!s.trades&&!s.positions.length&&!s.running)b.push(`<div class="banner bad"><div><b>Live account: real money.</b> Budget ${usd(s.budget,0)} USDT (≈ ${usd(s.budget*s.aed,0)} AED), ${usd(s.perTrade,0)} USDT per trade. Change it in Settings before you start.</div></div>`);
+  if(live&&s.hasKeys&&!s.trades&&!s.positions.length&&!s.running)b.push(`<div class="banner bad"><div><b>Live account on ${esc(s.exName)}: real money.</b> Budget ${usd(s.budget,0)} ${CC(s)}${inAed(s,s.budget)}, ${usd(s.perTrade,0)} ${CC(s)} per trade. Change it in Settings before you start.</div></div>`);
   if(s.lastError&&Date.now()-s.lastError.t<15*60e3)b.push(`<div class="banner warn"><div><b>Problem:</b> ${esc(s.lastError.msg)}</div></div>`);
   $("#h-banners").innerHTML=b.join("");if($("#b-reset"))$("#b-reset").onclick=async()=>{if(await confirmBox("Reset the loss limit?","The bot hit your maximum loss. Before restarting, check the Backtest and your settings.","Reset",true)){try{ST=await api("reset-halt",{acct:ACCT});renderHome()}catch(e){toast(e.message)}}};
   const tg=$("#b-toggle");tg.textContent=s.running?"Stop bot":"Start bot";tg.className="btn "+(s.running?"":"gold");
   $("#b-sellall").disabled=!s.positions.length&&!s.running;
   const bud=s.budget,used=Math.min(s.committed,bud);$("#h-bud1").style.width=(used/bud*100)+"%";$("#h-bud2").style.width=(Math.max(0,s.available)/bud*100)+"%";
-  $("#h-budtxt").textContent=`${usd(bud,0)} USDT ≈ ${usd(bud*s.aed,0)} AED`;$("#h-bud-a").textContent=`In trades ${usd(s.committed)}`;$("#h-bud-b").textContent=`Free to use ${usd(s.available)}`;
+  $("#h-budtxt").textContent=CC(s)==="AED"?`${usd(bud,0)} AED`:`${usd(bud,0)} USDT ≈ ${usd(bud*s.aed,0)} AED`;$("#h-bud-a").textContent=`In trades ${usd(s.committed)}`;$("#h-bud-b").textContent=`Free to use ${usd(s.available)}`;
   $("#h-posn").textContent=s.positions.length?s.positions.length+" open":"";
-  $("#h-pos").innerHTML=s.positions.length?s.positions.map(p=>{const lo=Math.min(p.stop,p.entry-p.stopDist),hi=p.tp||Math.max(p.peak||p.entry,p.price,p.entry+2*p.stopDist),span=hi-lo,at=Math.max(0,Math.min(100,(p.price-lo)/span*100)),en=(p.entry-lo)/span*100,showEn=en>=0&&en<=100;
-    return `<div class="pos"><div class="row"><div><span class="sym">${coin(p.symbol)}</span> <span class="tiny mut">/USDT · ${ago(p.openedAt)}</span></div><div class="pct num ${cls(p.pnl)}">${sgn(p.pct,1)}%</div></div>
-    <div class="row small num" style="margin-top:4px"><span class="mut">Bought ${px(p.entry)} · now ${px(p.price)}</span><span class="${cls(p.pnl)}">${sgn(p.pnl)} USDT</span></div>
+  $("#h-pos").innerHTML=s.positions.length?s.positions.map(p=>{const lo=p.stop,hi=p.tp,span=hi-lo,at=Math.max(0,Math.min(100,(p.price-lo)/span*100)),en=(p.entry-lo)/span*100,showEn=en>=0&&en<=100;
+    return `<div class="pos"><div class="row"><div><span class="sym">${coin(p.symbol)}</span> <span class="tiny mut">/${CC(s)} · ${ago(p.openedAt)}</span></div><div class="pct num ${cls(p.pnl)}">${sgn(p.pct,1)}%</div></div>
+    <div class="row small num" style="margin-top:4px"><span class="mut">Bought ${px(p.entry)} · now ${px(p.price)}</span><span class="${cls(p.pnl)}">${sgn(p.pnl)} ${CC(s)}</span></div>
     <div class="range">${showEn?`<s style="left:${en}%" title="Bought here"></s>`:""}<b style="left:calc(${at}% - 2px)"></b></div>
-    <div class="row tiny num"><span class="${p.stop>=p.entry?"up":"down"}">Stop ${px(p.stop)}${p.trailed?" (trailing)":p.stop>=p.entry?" (breakeven)":""}</span><span class="up">${p.tp?"Target "+px(p.tp):"Trailing · high "+px(p.peak||p.entry)}</span></div>
-    <div class="row" style="margin-top:10px"><span class="tiny mut">${p.stopOrderId?"🛡 Stop-loss placed on Binance":ST.acct==="live"?"Stop watched by the bot":"Demo trade"}</span><button class="btn sm red" data-sell="${p.id}">Sell now</button></div></div>`}).join(""):`<div class="empty">No open trades. ${s.running?"The bot is watching the market for a buy signal.":"Start the bot to begin."}</div>`;
-  $$("[data-sell]").forEach(b=>b.onclick=async()=>{const p=ST.positions.find(x=>x.id===b.dataset.sell);if(!await confirmBox(`Sell ${coin(p.symbol)} now?`,`Current result: <b class="${cls(p.pnl)}">${sgn(p.pnl)} USDT</b>. This sells at the market price.`,"Sell now",true))return;
-    b.disabled=true;try{const r=await api("close",{acct:ACCT,id:p.id});ST=r.status;renderHome();toast(`Sold: ${sgn(r.trade.pnl)} USDT`)}catch(e){toast(e.message);b.disabled=false}});
+    <div class="row tiny num"><span class="down">Stop ${px(p.stop)}${p.stop>=p.entry?" (breakeven)":""}</span><span class="up">Target ${px(p.tp)}</span></div>
+    <div class="row" style="margin-top:10px"><span class="tiny mut">${p.stopOrderId?"🛡 Stop-loss placed on "+esc(s.exName):ST.acct==="live"?"Stop watched by the bot":"Demo trade"}</span><button class="btn sm red" data-sell="${p.id}">Sell now</button></div></div>`}).join(""):`<div class="empty">No open trades. ${s.running?"The bot is watching the market for a buy signal.":"Start the bot to begin."}</div>`;
+  $$("[data-sell]").forEach(b=>b.onclick=async()=>{const p=ST.positions.find(x=>x.id===b.dataset.sell);if(!await confirmBox(`Sell ${coin(p.symbol)} now?`,`Current result: <b class="${cls(p.pnl)}">${sgn(p.pnl)} ${CC(ST)}</b>. This sells at the market price.`,"Sell now",true))return;
+    b.disabled=true;try{const r=await api("close",{acct:ACCT,id:p.id});ST=r.status;renderHome();toast(`Sold: ${sgn(r.trade.pnl)} ${CC(ST)}`)}catch(e){toast(e.message);b.disabled=false}});
 }
 function spark(eq){const svg=$("#h-spark");const pts=[{v:0},...(eq||[])];if(pts.length<2){svg.innerHTML=`<line x1="0" y1="32" x2="300" y2="32" stroke="#252932" stroke-dasharray="4 4"/>`;return}
   const vs=pts.map(p=>p.v),mn=Math.min(0,...vs),mx=Math.max(0,...vs),rg=mx-mn||1,X=i=>i/(pts.length-1)*300,Y=v=>58-(v-mn)/rg*52;
   const d=pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(""),last=vs[vs.length-1],col=last>=0?"#23c68b":"#ff6161";
   svg.innerHTML=`<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><line x1="0" x2="300" y1="${Y(0)}" y2="${Y(0)}" stroke="#252932" stroke-dasharray="4 4"/><path d="${d}L300,64L0,64Z" fill="url(#sg)"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.2" vector-effect="non-scaling-stroke"/>`}
 $("#b-toggle").onclick=async()=>{const s=ST;try{if(s.running){ST=await api("stop",{acct:ACCT});toast("Bot stopped. Open trades stay protected.")}
-  else{if(s.acct==="live"&&!await confirmBox("Start trading with real money?",`The bot will buy and sell on your Binance account using up to <b>${usd(s.budget,0)} USDT</b> (≈ ${usd(s.budget*s.aed,0)} AED), ${usd(s.perTrade,0)} USDT per trade. You can lose money.<label class="chk"><input type="checkbox" id="m-chk"> I understand the risk</label>`,"Start live",true))return;ST=await api("start",{acct:ACCT});toast(ACCT==="live"?"Live bot started":"Demo bot started")}renderHome()}catch(e){toast(e.message)}};
+  else{if(s.acct==="live"&&!await confirmBox("Start trading with real money?",`The bot will buy and sell on your ${esc(s.exName)} account using up to <b>${usd(s.budget,0)} ${CC(s)}</b>${inAed(s,s.budget)}, ${usd(s.perTrade,0)} ${CC(s)} per trade. You can lose money.<label class="chk"><input type="checkbox" id="m-chk"> I understand the risk</label>`,"Start live",true))return;ST=await api("start",{acct:ACCT});toast(ACCT==="live"?"Live bot started":"Demo bot started")}renderHome()}catch(e){toast(e.message)}};
 $("#b-sellall").onclick=async()=>{if(!await confirmBox("Sell everything and stop?",`The bot stops and sells all ${ST.positions.length} open trade(s) at the market price.`,"Sell all & stop",true))return;try{const r=await api("sellall",{acct:ACCT});ST=r.status;renderHome();toast(`Stopped · ${r.sold.length} sold`)}catch(e){toast(e.message)}};
 
 /* ---------- scanner ---------- */
 async function loadScan(){try{const d=await api("scan");$("#s-at").textContent=d.at?"Updated "+ago(d.at):"Loading… the first scan takes a minute";
-  $("#s-list").innerHTML=d.rows.length?d.rows.map(r=>`<div class="srow${r.signal?" sig":""}"><div class="row"><div><b style="font-size:16px">${coin(r.symbol)}</b> <span class="tiny mut num">${r.price?px(r.price):""}</span></div><span class="chip ${r.status}">${esc(r.label)}</span></div>
+  $("#s-list").innerHTML=d.rows.length?d.rows.map(r=>`<div class="srow${r.signal?" sig":""}"><div class="row"><div><b style="font-size:16px">${coin(r.symbol)}</b> <span class="tiny mut num">${r.price?px(r.price):""}</span></div><span>${r.onBO===false?'<span class="chip avoid" style="margin-right:4px">Not on BitOasis</span>':""}<span class="chip ${r.status}">${esc(r.label)}</span></span></div>
     ${r.price?`<div class="row tiny mut num" style="margin-top:6px"><span>RSI ${r.rsi.toFixed(0)}</span><span>Trend ${sgn(r.trendPct,1)}%</span><span>24 candles ${sgn(r.mom24,1)}%</span><span>Stop ${r.stopPct.toFixed(1)}%</span></div><div class="score"><i style="width:${r.score}%"></i></div>`:""}
     <details><summary>Why?</summary><ul class="why">${(r.reasons||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details></div>`).join(""):`<div class="empty">Waiting for the first scan…</div>`}catch(e){$("#s-list").innerHTML=`<div class="empty">${esc(e.message)}</div>`}}
 $("#s-ref").onclick=loadScan;
@@ -309,52 +307,46 @@ $("#s-ref").onclick=loadScan;
 /* ---------- trades ---------- */
 async function loadTrades(){try{const d=await api("trades?acct="+ACCT);const t=d.trades,s=ST||await api("status?acct="+ACCT);const w=t.filter(x=>x.pnl>0),l=t.filter(x=>x.pnl<=0);
   const avg=a=>a.length?a.reduce((x,y)=>x+y.pnl,0)/a.length:0;
-  $("#t-sum").innerHTML=`<h3>${s.acct==="live"?"Live":"Demo"} account results</h3><div class="kpis" style="margin:0"><div class="kpi"><b class="num ${cls(s.realized)}">${sgn(s.realized)}</b><span>Closed P/L (USDT)</span></div><div class="kpi"><b class="num up">${sgn(avg(w))}</b><span>Avg win</span></div><div class="kpi"><b class="num down">${sgn(avg(l))}</b><span>Avg loss</span></div></div>`;
+  $("#t-sum").innerHTML=`<h3>${s.acct==="live"?"Live":"Demo"} account results</h3><div class="kpis" style="margin:0"><div class="kpi"><b class="num ${cls(s.realized)}">${sgn(s.realized)}</b><span>Closed P/L (${CC(s)})</span></div><div class="kpi"><b class="num up">${sgn(avg(w))}</b><span>Avg win</span></div><div class="kpi"><b class="num down">${sgn(avg(l))}</b><span>Avg loss</span></div></div>`;
   $("#t-list").innerHTML=t.length?t.map(x=>`<div class="trow"><div><b>${coin(x.symbol)}</b> <span class="tiny mut">${dt(x.closedAt)}</span><div class="tiny mut num">${px(x.entry)} → ${px(x.exit)} · ${esc(x.reason)}</div></div><div class="r"><b class="num ${cls(x.pnl)}">${sgn(x.pnl)}</b><div class="tiny num ${cls(x.pnl)}">${sgn(x.pct,1)}%</div></div></div>`).join(""):`<div class="empty">No closed trades yet.</div>`}catch(e){toast(e.message)}}
 
 /* ---------- backtest ---------- */
 $("#bt-run").onclick=async()=>{const b=$("#bt-run");b.disabled=true;b.textContent="Running… (about 30 seconds)";
   try{const r=await api("backtest",{force:true,acct:ACCT});const T=r.total;const days=r.from&&r.to?Math.round((r.to-r.from)/864e5):0;
-    $("#bt-out").innerHTML=`<div class="card hero"><span class="lbl">Result over the last ${days} days · ${r.interval} candles · ${usd(r.perTrade,0)} USDT per trade</span><div class="big num ${cls(T.pnl)}">${sgn(T.pnl)} USDT</div><div class="aed num">${sgn(T.pnlPctOfBudget,1)}% of your budget · ${T.trades} trades · ${Math.round(T.winRate)}% winners · fees included</div>
-    <div class="kpis" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><div class="kpi"><b class="num ${cls(T.pnl)}">${sgn(T.pnl)}</b><span>Bot (USDT)</span></div><div class="kpi"><b class="num ${cls(T.holdPnl)}">${sgn(T.holdPnl)}</b><span>Just holding, same amount per coin</span></div></div></div>
+    $("#bt-out").innerHTML=`<div class="card hero"><span class="lbl">Result over the last ${days} days · ${r.interval} candles · ${usd(r.perTrade,0)} USDT per trade</span><div class="big num ${cls(T.pnl)}">${sgn(T.pnl)} USDT</div><div class="aed num">${sgn(T.pnlPctOfBudget,1)}% of your budget · ${T.trades} trades · ${Math.round(T.winRate)}% winners · fees included</div></div>
     <div class="card"><h3>By coin</h3><div class="tbl"><table><thead><tr><th>Coin</th><th>Trades</th><th>Win %</th><th>P/L USDT</th><th>Worst dip</th><th>Just holding</th></tr></thead><tbody>${r.symbols.map(s=>s.error?`<tr><td>${coin(s.symbol)}</td><td colspan="5" style="text-align:left" class="mut">${esc(s.error)}</td></tr>`:`<tr><td><b>${coin(s.symbol)}</b></td><td class="num">${s.trades}</td><td class="num">${s.trades?Math.round(s.winRate):"—"}</td><td class="num ${cls(s.pnl)}">${sgn(s.pnl)}</td><td class="num down">${s.maxDD?"−"+usd(s.maxDD):"0.00"}</td><td class="num ${cls(s.holdPct)}">${sgn(s.holdPct,1)}%</td></tr>`).join("")}</tbody></table></div>
     <p class="hint">"Just holding" is what buying at the start and holding would have done, for comparison. "Worst dip" is the biggest drop from a high point in that coin's running total.</p></div>
-    ${T.pnl<0?`<div class="banner warn">This strategy lost money over this period. Tap <b>Compare strategies</b> below to find a better one, and keep using the Demo account.</div>`:T.pnl<T.holdPnl?`<div class="banner warn">The bot made money, but just holding the coins made more over this period.</div>`:""}`}
+    ${T.pnl<0?`<div class="banner warn">This strategy lost money over this period. Try a different timeframe or coins, and keep using the Demo account.</div>`:""}`}
   catch(e){$("#bt-out").innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}b.disabled=false;b.textContent="Run backtest again"};
-
-/* ---------- compare strategies ---------- */
-function renderCmp(r){const best=r.rows.reduce((a,x)=>x.pnl>a.pnl?x:a,r.rows[0]);
-  $("#cmp-out").innerHTML=`<p class="tiny mut" style="margin:12px 0 0">${usd(r.perTrade,0)} USDT per trade · ${r.coins} coins · fees included. Sorted best first.</p>`+[...r.rows].sort((a,b)=>b.pnl-a.pnl).map(x=>`<div class="cmp${x===best&&x.pnl>0?" best":""}${x.current?" cur":""}">
-    <div class="row"><div><b>${esc(x.name)}</b>${x===best&&x.pnl>0?`<span class="tag g">BEST</span>`:""}${x.current?`<span class="tag b">IN USE</span>`:""}<div class="tiny mut">${esc(x.desc)} · ${x.days} days</div></div></div>
-    <div class="vs"><div class="kpi"><b class="num ${cls(x.pnl)}">${sgn(x.pnl)}</b><span>Bot USDT</span></div><div class="kpi"><b class="num ${cls(x.holdPnl)}">${sgn(x.holdPnl)}</b><span>Holding</span></div><div class="kpi"><b class="num down">${x.maxDD?"−"+usd(x.maxDD):"0.00"}</b><span>Worst dip</span></div></div>
-    <div class="row"><span class="tiny mut num">${x.trades} trades · ${x.trades?Math.round(x.winRate):0}% winners</span>${x.current?"":`<button class="btn sm${x===best&&x.pnl>0?" gold":""}" data-use="${x.id}">Use this</button>`}</div></div>`).join("")+
-  (r.rows.every(x=>x.pnl<=0)?`<div class="banner warn" style="margin-top:10px">None of the styles made money on your coins over these periods. Don't use the Live account yet. Try other coins, or keep testing in Demo.</div>`:"")+
-  `<p class="hint">"Holding" = buying each coin at the start with the same amount per trade and keeping it. "Worst dip" = the biggest drop in the bot's running total. Past results don't guarantee future profit.</p>`;
-  $$("[data-use]").forEach(b=>b.onclick=async()=>{const x=r.rows.find(y=>y.id===b.dataset.use);if(!await confirmBox(`Use "${x.name}"?`,`${esc(x.desc)}.<br>Both Demo and Live will use this for new trades. Open trades keep their current stop-loss.`,"Use this",false))return;
-    try{SET=await api("preset",{id:x.id});toast("Strategy changed");r.rows.forEach(y=>y.current=y.id===x.id);renderCmp(r);loadSettings()}catch(e){toast(e.message)}})}
-$("#cmp-run").onclick=async()=>{const b=$("#cmp-run");b.disabled=true;b.textContent="Testing 6 strategies… (about 1 minute)";
-  try{renderCmp(await api("compare",{acct:ACCT}))}catch(e){$("#cmp-out").innerHTML=`<div class="banner bad" style="margin-top:10px">${esc(e.message)}</div>`}b.disabled=false;b.textContent="Compare again"};
 
 /* ---------- settings ---------- */
 async function loadSettings(){try{SET=await api("settings");const s=SET;
   $("#k-key").value="";$("#k-key").placeholder=s.keys.key||"Paste your API key";$("#k-sec").placeholder=s.keys.secret?"Saved · leave empty to keep":"Paste your secret key";
   $("#d-budget").value=s.accounts.demo.budget;$("#d-per").value=s.accounts.demo.perTrade;$("#c-budget").value=s.accounts.live.budget;$("#c-per").value=s.accounts.live.perTrade;$("#c-maxopen").value=s.maxOpen;$("#c-cool").value=s.cooldownHours;$("#c-daily").value=s.dailyLossPct;$("#c-max").value=s.maxLossPct;
   $$("#c-int button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===s.strategy.interval));$("#c-rr").value=s.strategy.rr;$("#c-mstop").value=s.strategy.maxStopPct;$("#c-hold").value=s.strategy.maxHoldHours;
-  $$("#c-entry button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===(s.strategy.entry||"pullback")));$$("#c-exit button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===(s.strategy.exit||"trail")));$("#c-trail").value=s.strategy.trailR??2;exitHint();
-  $("#c-watch").value=s.watch.map(coin).join(", ");$("#tg-chat").value=s.telegram.chat||"";$("#tg-tok").placeholder=s.telegram.token?"Saved · leave empty to keep":"123456:ABC-…";aedHint()}catch(e){}}
-function aedHint(){const b=+$("#c-budget").value||0,p=+$("#c-per").value||0;$("#c-aed").textContent=`≈ ${usd(b*3.6725,0)} AED budget · ${usd(p*3.6725,0)} AED per trade. Binance's minimum trade is about 5 USDT. Keep this much USDT in your Binance Spot wallet.`}
+  $("#c-watch").value=s.watch.map(coin).join(", ");$$(".lccy").forEach(x=>x.textContent=s.liveCcy);
+  const bo=s.liveExchange==="bitoasis";$$("#c-ex button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===s.liveExchange));$("#bo-card").hidden=!bo;$("#bn-card").hidden=bo;$("#c-per").min=bo?25:6;
+  $("#c-exhint").innerHTML=bo?"Real orders go to <b>BitOasis in AED</b>. Buy/sell signals still come from Binance's public price charts (free, no Binance account needed). Only coins BitOasis lists are traded.":"Real orders go to your <b>Binance Spot wallet in USDT</b>.";
+  $("#bo-tok").value="";$("#bo-tok").placeholder=s.bitoasis.token?`Saved (${s.bitoasis.token}) · leave empty to keep`:"Paste your BitOasis token";$("#tg-chat").value=s.telegram.chat||"";$("#tg-tok").placeholder=s.telegram.token?"Saved · leave empty to keep":"123456:ABC-…";aedHint()}catch(e){}}
+function aedHint(){const b=+$("#c-budget").value||0,p=+$("#c-per").value||0;if(SET&&SET.liveCcy==="AED"){$("#c-aed").textContent=`≈ ${usd(b/3.6725,0)} USD budget · ${usd(p/3.6725,0)} USD per trade. Minimum 25 AED per trade. Keep at least the budget in AED in your BitOasis wallet. BitOasis fees are higher than Binance's, so bigger trades lose less to fees.`;return}$("#c-aed").textContent=`≈ ${usd(b*3.6725,0)} AED budget · ${usd(p*3.6725,0)} AED per trade. Binance's minimum trade is about 5 USDT. Keep this much USDT in your Binance Spot wallet.`}
 $("#c-budget").oninput=aedHint;$("#c-per").oninput=aedHint;
-["#c-int","#c-entry","#c-exit"].forEach(g=>$$(g+" button").forEach(b=>b.onclick=()=>{$$(g+" button").forEach(x=>x.setAttribute("aria-pressed",x===b));exitHint()}));
-const pick=g=>($$(g+" button").find(b=>b.getAttribute("aria-pressed")==="true")||{}).dataset?.v;
-function exitHint(){const t=pick("#c-exit")!=="target";$("#c-exit-hint").textContent=t?"No fixed target. Once a trade is up by its stop distance, the stop follows the price up, so winning trades can keep running.":"Sells at a fixed target (reward:risk × the stop distance).";$("#c-trail").disabled=!t;$("#c-rr").disabled=t}
+$$("#c-int button").forEach(b=>b.onclick=()=>$$("#c-int button").forEach(x=>x.setAttribute("aria-pressed",x===b)));
 $("#c-save").onclick=async()=>{$("#c-err").textContent="";try{SET=await api("settings",{accounts:{demo:{budget:$("#d-budget").value,perTrade:$("#d-per").value},live:{budget:$("#c-budget").value,perTrade:$("#c-per").value}},maxOpen:$("#c-maxopen").value,cooldownHours:$("#c-cool").value,dailyLossPct:$("#c-daily").value,maxLossPct:$("#c-max").value,watch:$("#c-watch").value,
-  strategy:{interval:pick("#c-int")||"1h",entry:pick("#c-entry")||"pullback",exit:pick("#c-exit")||"trail",trailR:$("#c-trail").value,rr:$("#c-rr").value,maxStopPct:$("#c-mstop").value,maxHoldHours:$("#c-hold").value}});toast("Settings saved");loadSettings();refresh()}catch(e){$("#c-err").textContent=e.message}};
+  strategy:{interval:($$("#c-int button").find(b=>b.getAttribute("aria-pressed")==="true")||{}).dataset?.v||"1h",rr:$("#c-rr").value,maxStopPct:$("#c-mstop").value,maxHoldHours:$("#c-hold").value}});toast("Settings saved");loadSettings();refresh()}catch(e){$("#c-err").textContent=e.message}};
 $("#k-save").onclick=async()=>{const b=$("#k-save");b.disabled=true;$("#k-res").textContent="Testing with Binance…";
-  try{const body={};if($("#k-key").value.trim())body.key=$("#k-key").value.trim();if($("#k-sec").value.trim())body.secret=$("#k-sec").value.trim();const r=Object.keys(body).length?await api("keys",body):await api("keys/test",{});$("#k-sec").value="";
+  try{const body={};if($("#k-key").value.trim())body.key=$("#k-key").value.trim();if($("#k-sec").value.trim())body.secret=$("#k-sec").value.trim();const r=Object.keys(body).length?await api("keys",body):await api("keys/test",{which:"binance"});$("#k-sec").value="";
     $("#k-res").innerHTML=r.ok?`<span class="up">✓ Connected. ${usd(r.usdt)} USDT free in your Spot wallet.</span>${(r.warn||[]).map(w=>`<div class="banner warn" style="margin:8px 0 0">${esc(w)}</div>`).join("")}`:`<span class="down">✗ ${esc(r.error)}</span>`;loadSettings()}
   catch(e){$("#k-res").innerHTML=`<span class="down">✗ ${esc(e.message)}</span>`}b.disabled=false};
+$$("#c-ex button").forEach(b=>b.onclick=async()=>{if(!SET||b.dataset.v===SET.liveExchange)return;const to=b.dataset.v==="bitoasis"?"BitOasis (AED)":"Binance (USDT)";
+  if(!await confirmBox(`Trade live on ${to}?`,`The live budget is converted to ${b.dataset.v==="bitoasis"?"AED":"USDT"} at the same value; check it after switching. Each exchange keeps its own live trade history. The demo account isn't affected.`,"Switch",false))return;
+  try{SET=await api("settings",{liveExchange:b.dataset.v});toast("Live account now uses "+to);loadSettings();refresh()}catch(e){toast(e.message)}});
+$("#bo-save").onclick=async()=>{const b=$("#bo-save");b.disabled=true;$("#bo-res").textContent="Testing with BitOasis…";
+  try{const t=$("#bo-tok").value.trim(),r=t?await api("keys",{boToken:t}):await api("keys/test",{which:"bitoasis"});$("#bo-tok").value="";
+    $("#bo-res").innerHTML=r.ok?`<span class="up">✓ Connected. ${usd(r.free)} AED available${r.coins&&r.coins.length?" · also holding "+esc(r.coins.join(", ")):""}.</span>${(r.warn||[]).map(w=>`<div class="banner warn" style="margin:8px 0 0">${esc(w)}</div>`).join("")}`:`<span class="down">✗ ${esc(r.error)}</span>`;loadSettings();refresh()}
+  catch(e){$("#bo-res").innerHTML=`<span class="down">✗ ${esc(e.message)}</span>`}b.disabled=false};
+$("#bo-rm").onclick=async()=>{if(!await confirmBox("Remove your BitOasis token?","The live bot stops and can't trade on BitOasis until you add a token again.","Remove",true))return;try{await api("keys/remove",{which:"bitoasis"});$("#bo-res").textContent="Token removed";loadSettings();refresh()}catch(e){toast(e.message)}};
 $("#d-reset").onclick=async()=>{if(!await confirmBox("Reset the demo account?","All demo trades and demo profit are cleared and the demo bot stops. Your live account isn't touched.","Reset demo",true))return;try{await api("reset-demo",{});toast("Demo account reset");refresh()}catch(e){toast(e.message)}};
-$("#k-rm").onclick=async()=>{if(!await confirmBox("Remove your Binance keys?","The live bot stops and can't trade until you add keys again.","Remove",true))return;try{await api("keys/remove",{});$("#k-res").textContent="Keys removed";loadSettings();refresh()}catch(e){toast(e.message)}};
+$("#k-rm").onclick=async()=>{if(!await confirmBox("Remove your Binance keys?","The live bot stops and can't trade until you add keys again.","Remove",true))return;try{await api("keys/remove",{which:"binance"});$("#k-res").textContent="Keys removed";loadSettings();refresh()}catch(e){toast(e.message)}};
 $("#tg-save").onclick=async()=>{try{const r=await api("telegram",{token:$("#tg-tok").value.trim(),chat:$("#tg-chat").value.trim()});$("#tg-tok").value="";toast(r.ok?"Test message sent to Telegram":"Saved, but the test message failed. Check the token and chat ID");loadSettings()}catch(e){toast(e.message)}};
 $("#pw-save").onclick=async()=>{try{await api("password",{current:$("#pw-cur").value,password:$("#pw-new").value});toast("Password changed. Please sign in again");showGate(false)}catch(e){toast(e.message)}};
 $("#b-out").onclick=async()=>{await api("logout",{}).catch(()=>{});showGate(false)};
@@ -364,7 +356,7 @@ async function loadLog(){try{const d=await api("log?acct="+ACCT);$("#lg-list").i
 /* ---------- boot ---------- */
 (async()=>{try{const a=await api("auth");if(a.setup)showGate(true);else if(!a.authed)showGate(false);else enter()}catch(e){showGate(false);$("#li-err").textContent=e.message}})();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&$("#gate").hidden)refresh()});
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 })();
 </script>
 </body>
