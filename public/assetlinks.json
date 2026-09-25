@@ -1,8 +1,8 @@
 [{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "app.netlify.tradepilot.twa",
-    "sha256_cert_fingerprints": ["REPLACE_WITH_THE_FINGERPRINT_FROM_YOUR_PWABUILDER_DOWNLOAD"]
-  }
-}]
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.netlify.trade_pilot23.twa",
+        "sha256_cert_fingerprints": ["AA:85:D8:6C:C0:28:5A:96:91:5D:A2:B5:39:57:97:F4:65:25:00:E0:F5:13:4F:B3:B5:9B:2E:9D:E7:C8:E0:DA"]
+      }
+    }]
