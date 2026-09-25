@@ -1,14 +1,14 @@
 # Trade Pilot
 
-An automated crypto trading bot for **Binance Spot**, with a phone app to control it.
+An automated crypto trading bot with a phone app to control it. Live trades go to **Binance Spot (USDT)** or **BitOasis (AED, UAE)**, whichever you choose in Settings.
 It runs two accounts side by side:
 
-| | Demo | Live |
-|---|---|---|
-| Money | Pretend USDT | Real USDT in your Binance Spot wallet |
-| Prices | Live Binance prices | Live Binance prices |
-| Orders | Simulated (fees included) | Real Binance orders + a stop-loss order on Binance |
-| Needs API keys | No | Yes |
+| | Demo | Live on Binance | Live on BitOasis |
+|---|---|---|---|
+| Money | Pretend USDT | Real USDT in your Binance Spot wallet | Real AED in your BitOasis wallet |
+| Signals from | Binance public prices | Binance public prices | Binance public prices (BitOasis has no chart API) |
+| Orders | Simulated (fees included) | Real orders + stop-loss on Binance | Real orders + stop order on BitOasis |
+| Needs | Nothing | Binance API key | BitOasis API token |
 
 Each account has its own budget, trades, profit and Start/Stop button, so you can compare them.
 
@@ -26,16 +26,12 @@ Each account has its own budget, trades, profit and Start/Stop button, so you ca
 2. **Recent dip:** RSI fell below 42 in the last few candles.
 3. **Turning back up:** RSI is back above 45 and rising, the candle closed green above the 20-candle average, and volume is normal.
 
-You can switch the buy rule to **Breakout**: buy when the price closes above the highest point of the last 20 candles, in an uptrend.
-
 **Every trade gets:**
 
 - **A stop-loss:** 2 × ATR below the buy price (between 1.5% and your max %). In Live it's placed **on Binance itself**, so it protects you even if the server is down.
-- **A trailing stop (default):** there's no fixed target. Once the price is up by the stop distance, the stop follows the highest price, so winning trades can keep running. You can switch back to a **fixed target** (reward:risk × the stop distance) in Settings.
-- **Breakeven:** once the price has risen by 1.5× the stop distance, the stop moves to the buy price **plus 0.4%**, enough to cover both fees, so a "breakeven" exit isn't a small loss.
-- **A time exit:** it sells only if a trade has gone nowhere after 72 hours (you can change this).
-
-**Compare strategies (Backtest tab):** tests 6 strategy styles on your coins, fees included, next to "just holding". Tap **Use this** to switch.
+- **A target:** reward:risk × the stop distance (2× by default).
+- **Breakeven:** once the price has risen by 1× the stop distance, the stop moves up to the buy price.
+- **A time exit:** it sells if there's no progress after 72 hours (you can change this).
 
 **Safety limits:**
 
@@ -121,6 +117,21 @@ Everything here is free: GitHub, Netlify, Oracle Always Free, DuckDNS and Telegr
    The app warns you if the key can withdraw or isn't IP-locked.
 4. Put USDT in your **Spot** wallet. You can buy USDT with AED on Binance. The live budget is in USDT (1 USDT ≈ 3.67 AED).
 
+### Step 5b – Or connect BitOasis instead (UAE, AED)
+Use this if your Binance account can't trade.
+1. Log in to **bitoasis.net** on a computer (or the phone browser), then go to **Settings › Security › Token Management** and create a token.
+   - Allow **trading** and **balance/read** access.
+   - **Do NOT allow withdrawals.**
+2. In the app, go to **Settings › Live account › Exchange** and tap **BitOasis · AED**.
+   - Your live budget is converted to AED. Check it: the minimum is 25 AED per trade.
+3. The **BitOasis API token** box appears. Paste the token and tap **Save & test**. You should see your AED balance.
+4. Deposit AED into your BitOasis wallet (at least your live budget).
+
+**Good to know about BitOasis:**
+- Only coins listed on BitOasis are traded. The Scanner marks the others **Not on BitOasis**.
+- BitOasis fees are higher than Binance's (roughly 0.5% per buy or sell, so about 1% per round trip). Use bigger trades, e.g. 150 AED or more, so fees eat less of the profit.
+- Each exchange keeps its own live trade history. Switch back to Binance any time when no live trade is open.
+
 ### Step 6 – Start
 1. **Settings:** set the Demo and Live budgets, the amount per trade and the limits.
 2. **Backtest:** see how the strategy did on recent months of real prices.
@@ -172,6 +183,7 @@ Then open the app and use your setup code again. Your trades and keys are kept.
   - `src/strategy.js` – signals and exits
   - `src/bot.js` – engine and limits
   - `src/binance.js` – signed REST client and filters
+  - `src/bitoasis.js` – BitOasis client (Bearer token, AED orders; every order is checked with `?test=true` first and never retried)
   - `src/server.js` – login and API
-- **Tests:** `npm test` runs the full end-to-end test against a strict fake Binance in `test/`, which checks signatures, price ticks, lot steps, minimum order size and balances.
+- **Tests:** `npm test` runs the full end-to-end test against a strict fake Binance and a strict fake BitOasis in `test/`, which checks signatures, price ticks, lot steps, minimum order size and balances.
 - **Run locally:** `npm start` serves the dashboard on port 8080. The setup code is printed in the console. Local runs work only from outside the US, because of Binance's location block.
