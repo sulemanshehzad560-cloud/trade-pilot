@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080a">
+<title>Trade Pilot Design System</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="design-system.css">
+<style>
+/* Style-guide-only layout; everything else comes from design-system.css */
+main{padding-bottom:var(--space-7)}
+.sg-sec{margin:var(--space-6) 0 var(--space-2);font-size:var(--font-size-xs);font-weight:var(--font-weight-heavy);letter-spacing:var(--letter-spacing-wide);text-transform:uppercase;color:var(--color-accent)}
+.sg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--space-2)}
+.sg-sw{border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface)}
+.sg-sw div{height:48px}
+.sg-sw p{margin:0;padding:var(--space-1-5) var(--space-2);font-size:var(--font-size-2xs);color:var(--color-text-muted)}
+.sg-sw b{display:block;color:var(--color-text);font-size:var(--font-size-xs)}
+.sg-wrap{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.sg-type p{margin:0 0 var(--space-1-5)}
+.sg-type code,.sg-code{font:var(--font-size-2xs)/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--color-text-muted)}
+.sg-space{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-1)}
+.sg-space i{display:block;height:10px;background:var(--color-accent);border-radius:2px}
+.sg-rad{width:64px;height:64px;background:var(--color-surface-raised);border:1px solid var(--color-border)}
+</style>
+</head>
+<body>
+<header class="top">
+  <svg viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="#101217" stroke="#d8b25e" stroke-opacity=".5"/><path d="M9 33l9-10 7 6 13-15M31 14h7v7" fill="none" stroke="#d8b25e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <h1>Design System</h1><span class="pill on"><i></i>NIGHT GOLD v1.0</span>
+</header>
+<main>
+  <p class="small mut mt-3-5">Tokens and components used by the Trade Pilot dashboard. Source: <code class="sg-code">public/design-system.css</code> · docs: <code class="sg-code">DESIGN_SYSTEM.md</code></p>
+
+  <h2 class="sg-sec">Colour · surfaces &amp; text</h2>
+  <div class="sg-grid" id="sw-neutral"></div>
+  <h2 class="sg-sec">Colour · meaning</h2>
+  <div class="sg-grid" id="sw-meaning"></div>
+
+  <h2 class="sg-sec">Typography</h2>
+  <div class="card sg-type" id="type"></div>
+
+  <h2 class="sg-sec">Spacing</h2>
+  <div class="card" id="space"></div>
+
+  <h2 class="sg-sec">Radius</h2>
+  <div class="sg-wrap" id="radius"></div>
+
+  <h2 class="sg-sec">Buttons</h2>
+  <div class="card">
+    <div class="actions"><button class="btn gold">Start bot</button><button class="btn red">Sell all &amp; stop</button></div>
+    <div class="actions"><button class="btn green">Confirm</button><button class="btn">Secondary</button></div>
+    <div class="sg-wrap"><button class="btn sm">Small</button><button class="btn sm red">Sell now</button><button class="btn sm" disabled>Disabled</button></div>
+  </div>
+
+  <h2 class="sg-sec">Pills, chips &amp; choices</h2>
+  <div class="card">
+    <div class="sg-wrap"><span class="pill"><i></i>STOPPED</span><span class="pill on"><i></i>RUNNING</span><span class="pill live">LIVE</span><span class="pill sim">DEMO</span></div>
+    <div class="sg-wrap mt-3"><span class="chip">Neutral</span><span class="chip buy">Buy signal</span><span class="chip watch">Watch</span><span class="chip avoid">Avoid</span><span class="chip error">Error</span></div>
+    <div class="chips mt-3"><button type="button" aria-pressed="false">15 min</button><button type="button" aria-pressed="true">1 hour</button><button type="button" aria-pressed="false">4 hours</button></div>
+    <div class="acctsw mt-3" role="tablist"><button type="button" role="tab" aria-selected="true" class="on"><i></i>Demo<small>+12.40</small></button><button type="button" role="tab" aria-selected="false" class="live"><i></i>Live<small>—</small></button></div>
+    <div class="seg mt-3"><button type="button" aria-pressed="false">Off</button><button type="button" aria-pressed="true" class="live">Live</button></div>
+  </div>
+
+  <h2 class="sg-sec">Banners</h2>
+  <div class="banner info">Info — demo account trades pretend money.</div>
+  <div class="banner warn">Warning — API key can withdraw funds.</div>
+  <div class="banner bad"><div class="grow"><b>Paused for today</b><br>Daily loss limit reached.</div><button class="btn sm">Reset limit</button></div>
+
+  <h2 class="sg-sec">Data display</h2>
+  <div class="card hero">
+    <div class="row"><span class="lbl">Total profit / loss</span><span class="tiny mut">just now</span></div>
+    <div class="big num"><span class="up">+48.21</span> <span class="ccy">USDT</span></div><div class="aed num">≈ 177.07 AED</div>
+    <div class="kpis"><div class="kpi"><b class="num up">+3.10</b><span>Today</span></div><div class="kpi"><b class="num">62%</b><span>Win rate</span></div><div class="kpi"><b class="num">21</b><span>Trades</span></div></div>
+  </div>
+  <div class="card"><div class="row"><h3>Budget</h3><span class="small num mut">120 / 200 USDT</span></div>
+    <div class="bar mt-2-5"><i class="fill" style="width:60%"></i><i class="rest" style="width:40%"></i></div></div>
+  <div class="pos">
+    <div class="row"><span class="sym">SOL</span><span class="pct num up">+2.35%</span></div>
+    <div class="row small num mt-1"><span class="mut">Bought 142.10 · now 145.44</span><span class="up">+2.35 USDT</span></div>
+    <div class="range"><s style="left:40%"></s><b style="left:calc(62% - 2px)"></b></div>
+    <div class="row tiny num"><span class="down">Stop 138.20</span><span class="up">Target 150.00</span></div>
+  </div>
+  <div class="srow sig"><div class="row"><b class="sym">ETH</b><span class="chip buy">Buy signal</span></div><div class="score"><i style="width:82%"></i></div></div>
+  <div class="card"><div class="tbl"><table><thead><tr><th>Coin</th><th>Trades</th><th>Win %</th><th>P/L</th></tr></thead><tbody><tr><td><b>BTC</b></td><td class="num">8</td><td class="num">62</td><td class="num up">+12.40</td></tr><tr><td><b>ETH</b></td><td class="num">5</td><td class="num">40</td><td class="num down">−3.10</td></tr></tbody></table></div></div>
+  <div class="empty">No open trades. Start the bot to begin.</div>
+
+  <h2 class="sg-sec">Forms</h2>
+  <div class="card">
+    <div class="g2"><div><label for="f1">Budget (USDT)</label><input type="number" id="f1" value="200"></div><div><label for="f2">Per trade (USDT)</label><input type="number" id="f2" value="50"></div></div>
+    <p class="hint">Hint text explains the field.</p>
+    <label class="chk"><input type="checkbox" checked> Keep me signed in</label>
+    <p class="err">Error message</p>
+  </div>
+</main>
+<script>
+(function(){
+"use strict";
+const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim();
+const sw=(id,list)=>{document.getElementById(id).innerHTML=list.map(n=>`<div class="sg-sw"><div style="background:var(${n})"></div><p><b>${n.replace("--color-","")}</b>${v(n)}</p></div>`).join("")};
+sw("sw-neutral",["--color-bg","--color-field","--color-surface","--color-surface-raised","--color-surface-overlay","--color-border","--color-border-strong","--color-text-muted","--color-text-soft","--color-text"]);
+sw("sw-meaning",["--color-accent-lo","--color-accent","--color-accent-hi","--color-positive","--color-negative","--color-negative-text","--color-warning","--color-warning-text","--color-info","--color-info-text"]);
+document.getElementById("type").innerHTML=["display","2xl","xl","lg","base","md","sm","xs","2xs"].map(k=>`<p style="font-size:var(--font-size-${k});font-weight:${k==="display"?800:k==="base"||k==="md"?400:700}">Profit +48.21 <code>--font-size-${k} · ${v("--font-size-"+k)}</code></p>`).join("");
+document.getElementById("space").innerHTML=["0-5","1","1-5","2","2-5","3","3-5","4","5","6","7"].map(k=>`<div class="sg-space"><code class="sg-code" style="width:92px">--space-${k}</code><i style="width:calc(var(--space-${k}) * 4)"></i><span class="tiny mut">${v("--space-"+k)}</span></div>`).join("");
+document.getElementById("radius").innerHTML=["xs","sm","md","lg","xl","2xl","full"].map(k=>`<div><div class="sg-rad" style="border-radius:var(--radius-${k})"></div><p class="tiny mut m-0 mt-1">${k}</p></div>`).join("");
+})();
+</script>
+</body>
+</html>

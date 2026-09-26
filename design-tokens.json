@@ -1,0 +1,137 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "$description": "Trade Pilot design tokens (\"Night Gold\" v1.0). Source of truth for public/design-system.css.",
+  "primitive": {
+    "ink": {
+      "1000": { "$type": "color", "$value": "#07080a" },
+      "950": { "$type": "color", "$value": "#0b0c10" },
+      "900": { "$type": "color", "$value": "#101217" },
+      "850": { "$type": "color", "$value": "#171a21" },
+      "800": { "$type": "color", "$value": "#1b1e25" },
+      "700": { "$type": "color", "$value": "#252932" },
+      "600": { "$type": "color", "$value": "#3a3f4b" },
+      "400": { "$type": "color", "$value": "#8d94a3" },
+      "200": { "$type": "color", "$value": "#c6cbd5" },
+      "50": { "$type": "color", "$value": "#eef0f3" }
+    },
+    "gold": {
+      "700": { "$type": "color", "$value": "#b28a36" },
+      "500": { "$type": "color", "$value": "#d8b25e" },
+      "300": { "$type": "color", "$value": "#f3d796" },
+      "ink": { "$type": "color", "$value": "#17130a" }
+    },
+    "green": {
+      "400": { "$type": "color", "$value": "#43e0a4" },
+      "500": { "$type": "color", "$value": "#23c68b" },
+      "600": { "$type": "color", "$value": "#1fae78" },
+      "ink": { "$type": "color", "$value": "#05130d" }
+    },
+    "red": {
+      "500": { "$type": "color", "$value": "#ff6161" },
+      "400": { "$type": "color", "$value": "#ff8a8a" },
+      "300": { "$type": "color", "$value": "#ff9d9d" },
+      "200": { "$type": "color", "$value": "#ffb3b3" }
+    },
+    "amber": {
+      "500": { "$type": "color", "$value": "#f0a93b" },
+      "200": { "$type": "color", "$value": "#ffd08a" }
+    },
+    "blue": {
+      "500": { "$type": "color", "$value": "#6ea8ff" },
+      "200": { "$type": "color", "$value": "#bcd5ff" }
+    }
+  },
+  "color": {
+    "bg": { "$type": "color", "$value": "{primitive.ink.1000}" },
+    "surface": { "$type": "color", "$value": "{primitive.ink.900}" },
+    "surface-raised": { "$type": "color", "$value": "{primitive.ink.850}" },
+    "surface-overlay": { "$type": "color", "$value": "{primitive.ink.800}" },
+    "field": { "$type": "color", "$value": "{primitive.ink.950}" },
+    "border": { "$type": "color", "$value": "{primitive.ink.700}" },
+    "border-strong": { "$type": "color", "$value": "{primitive.ink.600}" },
+    "text": { "$type": "color", "$value": "{primitive.ink.50}" },
+    "text-soft": { "$type": "color", "$value": "{primitive.ink.200}" },
+    "text-muted": { "$type": "color", "$value": "{primitive.ink.400}" },
+    "accent": { "$type": "color", "$value": "{primitive.gold.500}" },
+    "accent-hi": { "$type": "color", "$value": "{primitive.gold.300}" },
+    "accent-lo": { "$type": "color", "$value": "{primitive.gold.700}" },
+    "on-accent": { "$type": "color", "$value": "{primitive.gold.ink}" },
+    "positive": { "$type": "color", "$value": "{primitive.green.500}" },
+    "on-positive": { "$type": "color", "$value": "{primitive.green.ink}" },
+    "negative": { "$type": "color", "$value": "{primitive.red.500}" },
+    "negative-text": { "$type": "color", "$value": "{primitive.red.300}" },
+    "danger-text": { "$type": "color", "$value": "{primitive.red.400}" },
+    "danger-soft": { "$type": "color", "$value": "{primitive.red.200}" },
+    "warning": { "$type": "color", "$value": "{primitive.amber.500}" },
+    "warning-text": { "$type": "color", "$value": "{primitive.amber.200}" },
+    "info": { "$type": "color", "$value": "{primitive.blue.500}" },
+    "info-text": { "$type": "color", "$value": "{primitive.blue.200}" }
+  },
+  "font": {
+    "family": { "sans": { "$type": "fontFamily", "$value": ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica", "Arial", "sans-serif"] } },
+    "size": {
+      "2xs": { "$type": "dimension", "$value": "11.5px" },
+      "xs": { "$type": "dimension", "$value": "12.5px" },
+      "sm": { "$type": "dimension", "$value": "13.5px" },
+      "md": { "$type": "dimension", "$value": "14px" },
+      "base": { "$type": "dimension", "$value": "15px" },
+      "lg": { "$type": "dimension", "$value": "16px" },
+      "xl": { "$type": "dimension", "$value": "17.5px" },
+      "2xl": { "$type": "dimension", "$value": "20px" },
+      "display": { "$type": "dimension", "$value": "36px" }
+    },
+    "weight": {
+      "medium": { "$type": "fontWeight", "$value": 600 },
+      "bold": { "$type": "fontWeight", "$value": 700 },
+      "heavy": { "$type": "fontWeight", "$value": 800 }
+    },
+    "line-height": {
+      "tight": { "$type": "number", "$value": 1.15 },
+      "base": { "$type": "number", "$value": 1.45 }
+    }
+  },
+  "space": {
+    "0-5": { "$type": "dimension", "$value": "2px" },
+    "1": { "$type": "dimension", "$value": "4px" },
+    "1-5": { "$type": "dimension", "$value": "6px" },
+    "2": { "$type": "dimension", "$value": "8px" },
+    "2-5": { "$type": "dimension", "$value": "10px" },
+    "3": { "$type": "dimension", "$value": "12px" },
+    "3-5": { "$type": "dimension", "$value": "14px" },
+    "4": { "$type": "dimension", "$value": "16px" },
+    "5": { "$type": "dimension", "$value": "20px" },
+    "6": { "$type": "dimension", "$value": "24px" },
+    "7": { "$type": "dimension", "$value": "28px" }
+  },
+  "radius": {
+    "xs": { "$type": "dimension", "$value": "4px" },
+    "sm": { "$type": "dimension", "$value": "10px" },
+    "md": { "$type": "dimension", "$value": "12px" },
+    "lg": { "$type": "dimension", "$value": "14px" },
+    "xl": { "$type": "dimension", "$value": "18px" },
+    "2xl": { "$type": "dimension", "$value": "22px" },
+    "full": { "$type": "dimension", "$value": "999px" }
+  },
+  "shadow": {
+    "sm": { "$type": "shadow", "$value": "0 1px 4px rgba(0,0,0,.4)" },
+    "lg": { "$type": "shadow", "$value": "0 20px 60px rgba(0,0,0,.6)" },
+    "ring-focus": { "$type": "shadow", "$value": "0 0 0 3px rgba(216,178,94,.18)" }
+  },
+  "duration": {
+    "fast": { "$type": "duration", "$value": "200ms" }
+  },
+  "size": {
+    "control": { "$type": "dimension", "$value": "46px" },
+    "control-sm": { "$type": "dimension", "$value": "36px" },
+    "container": { "$type": "dimension", "$value": "720px" },
+    "sheet": { "$type": "dimension", "$value": "560px" }
+  },
+  "z": {
+    "subbar": { "$type": "number", "$value": 19 },
+    "topbar": { "$type": "number", "$value": 20 },
+    "nav": { "$type": "number", "$value": 30 },
+    "gate": { "$type": "number", "$value": 50 },
+    "toast": { "$type": "number", "$value": 80 },
+    "modal": { "$type": "number", "$value": 90 }
+  }
+}

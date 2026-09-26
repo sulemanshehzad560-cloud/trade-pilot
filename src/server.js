@@ -71,7 +71,7 @@ const server = http.createServer(async (req, res) => {
       const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
       if (!/^[\w.-]+$/.test(file)) { res.writeHead(404); return res.end(); }
       const fp = path.join(PUB, file); if (!fs.existsSync(fp)) { res.writeHead(404); return res.end("Not found"); }
-      const type = { ".html": "text/html; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".js": "text/javascript", ".webmanifest": "application/manifest+json" }[path.extname(fp)] || "application/octet-stream";
+      const type = { ".html": "text/html; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".js": "text/javascript", ".css": "text/css; charset=utf-8", ".webmanifest": "application/manifest+json" }[path.extname(fp)] || "application/octet-stream";
       res.writeHead(200, { "content-type": type, "cache-control": "no-cache", ...SEC }); return fs.createReadStream(fp).pipe(res);
     }
     const key = `${req.method} ${url.pathname}`;
