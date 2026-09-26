@@ -56,6 +56,9 @@ const routes = {
   "POST /api/close": async (b) => ({ trade: await bot.closeOne(A(b.acct), b.id), status: bot.status(A(b.acct)) }),
   "POST /api/reset-halt": (b) => { bot.resetHalt(A(b.acct)); return bot.status(A(b.acct)); },
   "POST /api/reset-demo": () => { bot.resetDemo(); return bot.status("demo"); },
+  // Netlify's proxy gives up after ~26 s, so a long comparison answers "pending" and the app asks again.
+  "POST /api/compare": (b) => { const a = A(b.acct), ac = bot.settings.accounts[a], k = bot.isBO(a) ? 1 / AED : 1; const job = bot.compare(!!b.force, ac.perTrade * k, ac.budget * k);
+    return Promise.race([job, new Promise((r) => setTimeout(() => r({ pending: true }), 20000))]); },
   "POST /api/backtest": (b) => { const a = A(b.acct), ac = bot.settings.accounts[a], k = bot.isBO(a) ? 1 / AED : 1; return bot.backtest(!!b.force, ac.perTrade * k, ac.budget * k); },
   "POST /api/password": (b) => {
     if (!safeEq(hashPw(b.current || "", auth.salt), auth.hash)) throw new Error("Current password is wrong");

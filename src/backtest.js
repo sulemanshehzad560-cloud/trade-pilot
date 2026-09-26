@@ -21,7 +21,7 @@ export function backtestSymbol(candles, p, { tradeSize = 100, fee = 0.001, slip 
     const a = analyse(candles.slice(Math.max(0, i - 400), i + 1), p);
     if (a.signal) {
       const nx = candles[i + 1], entry = nx.o * (1 + slip), qty = tradeSize * (1 - fee) / entry;
-      pos = { entry, qty, stopDist: a.stopDist, stop: entry - a.stopDist, tp: a.tpDist ? entry + a.tpDist : null, peak: entry, openedAt: nx.t };
+      pos = { entry, qty, stopDist: a.stopDist, stop: entry - a.stopDist, tp: a.tpDist ? entry + a.tpDist : null, exit: a.exit, peak: entry, openedAt: nx.t };
       // the entry bar itself can hit the stop / target
       i++; const m = manage(pos, { high: nx.h, low: nx.l, price: nx.c, now: nx.t + barMs }, p);
       if (m.exit) closeTrade(nx, m.price, m.reason);

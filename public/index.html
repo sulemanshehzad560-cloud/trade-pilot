@@ -39,14 +39,17 @@
 <!-- HOME -->
 <section class="view" id="v-home">
   <div id="h-banners"></div>
+  <div class="ticker" id="h-ticker" aria-label="Watched coins"></div>
   <div class="home-grid"><div class="col">
   <div class="card hero">
     <div class="row"><span class="lbl">Total profit / loss</span><span class="tiny mut" id="h-upd"></span></div>
     <div class="big num" id="h-total">—</div><div class="aed num" id="h-aed"></div>
-    <svg class="spark" id="h-spark" viewBox="0 0 300 100" preserveAspectRatio="none" aria-label="Profit over time"></svg><p class="spark-note" id="h-sparknote" hidden>Your profit chart starts after the first closed trade.</p>
+    <div class="chart" id="h-chart"><svg class="spark" id="h-spark" viewBox="0 0 300 100" preserveAspectRatio="none" aria-label="Profit over time"></svg><div class="tip" id="h-tip" hidden></div></div><p class="spark-note" id="h-sparknote" hidden>Your profit chart starts after the first closed trade.</p>
     <div class="kpis"><div class="kpi"><b class="num" id="h-today">—</b><span>Today</span></div><div class="kpi"><b class="num" id="h-win">—</b><span>Win rate</span></div><div class="kpi"><b class="num" id="h-trades">—</b><span>Trades</span></div></div>
   </div>
   <div class="actions"><button class="btn gold" id="b-toggle">Start bot</button><button class="btn red" id="b-sellall">Sell all & stop</button></div>
+  <div class="card"><div class="row"><h3>Bot health</h3><span class="tiny mut" id="h-next"></span></div>
+    <div class="health" id="h-health"></div><div class="strat-chip" id="h-strat"></div><div class="mood" id="h-mood"></div></div>
   <div class="card"><div class="row"><h3>Budget</h3><span class="small num mut" id="h-budtxt"></span></div>
     <div class="bar mt-3"><i class="fill" id="h-bud1"></i><i class="rest" id="h-bud2"></i></div>
     <div class="legend num"><span id="h-bud-a"></span><span id="h-bud-b"></span></div></div>
@@ -59,6 +62,7 @@
 <section class="view" id="v-scan" hidden>
   <div class="section-head"><div><h2 class="page-title">Market scanner</h2><span class="tiny mut" id="s-at"></span></div><button class="btn sm" id="s-ref">Refresh</button></div>
   <p class="small mut lead">Every 5 minutes the bot checks each coin's trend, momentum and RSI. It only buys on a <span class="chip buy">Buy signal</span> an uptrend with a short dip that's turning back up.</p>
+  <div class="filters" id="s-filt" role="group" aria-label="Filter coins"></div>
   <div id="s-list"></div>
 </section>
 <!-- TRADES -->
@@ -66,10 +70,16 @@
   <div class="card" id="t-sum"></div>
   <div class="card"><h3>Closed trades</h3><div id="t-list"></div></div>
 </section>
-<!-- BACKTEST -->
+<!-- STRATEGY LAB -->
 <section class="view" id="v-bt" hidden>
-  <div class="card"><h3>Backtest</h3><p class="small mut m-0 mb-3">Replays your exact strategy and settings on the last few months of real Binance prices, including fees. Past results don't guarantee future profit, but a strategy that loses here will probably lose live too.</p>
-  <button class="btn gold full" id="bt-run">Run backtest</button></div>
+  <div class="section-head"><div><h2 class="page-title">Strategy Lab</h2><span class="tiny mut">Test well-known strategies on your coins before trusting them</span></div></div>
+  <div class="card hero" id="lab-cur"></div>
+  <div class="card"><h3>Compare every strategy<span class="sub">Replays 10 strategies used by popular bots and open-source projects on your watched coins, over the last few months of real Binance prices, with fees and slippage. Takes up to a minute.</span></h3>
+    <button class="btn gold full" id="lab-run">Compare strategies</button></div>
+  <div id="lab-out"></div>
+  <div class="section-head spaced"><h3 class="m-0">Current strategy in detail</h3></div>
+  <div class="card"><p class="small mut m-0 mb-3">Replays your exact strategy and settings coin by coin. Past results don't guarantee future profit, but a strategy that loses here will probably lose live too.</p>
+  <button class="btn full" id="bt-run">Run backtest</button></div>
   <div id="bt-out"></div>
 </section>
 <!-- SETTINGS -->
@@ -100,6 +110,7 @@
     <div class="g2"><div><label for="c-daily">Daily loss limit (%)</label><input type="number" id="c-daily" min="1" max="50"></div><div><label for="c-max">Max total loss (%)</label><input type="number" id="c-max" min="2" max="90"></div></div>
     <p class="hint">Percentages are of each account's budget. If today's losses reach the daily limit, the bot stops buying until tomorrow. If total losses reach the max, the bot stops completely until you reset it.</p></div>
   <div class="card"><h3>Strategy</h3>
+    <div class="strat-chip mt-0" id="c-strat"></div>
     <label>Candle timeframe</label><div class="chips" id="c-int"><button type="button" data-v="15m">15 min</button><button type="button" data-v="1h">1 hour</button><button type="button" data-v="4h">4 hours</button></div>
     <div class="g2"><div><label for="c-rr">Target ÷ stop (reward:risk)</label><input type="number" id="c-rr" step="0.5" min="1" max="5"></div><div><label for="c-mstop">Max stop-loss (%)</label><input type="number" id="c-mstop" step="0.5" min="1" max="20"></div></div>
     <p class="hint">Reward:risk only sets a fixed take-profit. With the default trailing stop the bot ignores it and lets winners run.</p>
@@ -124,7 +135,7 @@
   <button data-v="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>Home</button>
   <button data-v="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Scanner</button>
   <button data-v="trades"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Trades</button>
-  <button data-v="bt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>Backtest</button>
+  <button data-v="bt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/></svg>Lab</button>
   <button data-v="set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</button>
 </nav>
 <div class="modal" id="modal" hidden><div class="mbox" id="mbox" role="dialog" aria-modal="true"></div></div>
@@ -149,6 +160,19 @@ const coin=s=>s.replace(/USDT$/,"");
 const CC=s=>(s&&s.ccy)||"USDT";
 const inAed=(s,x,d=0)=>CC(s)==="AED"?"":` (≈ ${usd(x*s.aed,d)} AED)`;
 const dt=t=>new Date(t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+let SCAN=null,LAB=null,sFilt="all",scanFetched=0,lastTotal=null,EQ=null;
+const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const FLASK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/></svg>';
+/* small line chart; lines = dashed reference levels like the buy price and stop */
+function sparkSvg(vals,{w=100,h=30,lines=[],area=false}={}){if(!vals||vals.length<2)return`<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"></svg>`;
+  const all=vals.concat(lines.map(l=>l.v)),mn=Math.min(...all),mx=Math.max(...all),rg=mx-mn||1,X=i=>i/(vals.length-1)*w,Y=v=>h-2-(v-mn)/rg*(h-4);
+  const col=tok(vals[vals.length-1]>=vals[0]?"--color-positive":"--color-negative"),d=vals.map((v,i)=>`${i?"L":"M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+  const ln=lines.map(l=>`<line x1="0" x2="${w}" y1="${Y(l.v).toFixed(1)}" y2="${Y(l.v).toFixed(1)}" stroke="${tok(l.c)}" stroke-width="1.2" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>`).join("");
+  return`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${ln}${area?`<path d="${d}L${w},${h}L0,${h}Z" fill="${col}" fill-opacity=".12"/>`:""}<path d="${d}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`}
+/* ring gauge: red as a limit fills up, or gold for plain usage */
+function ring(frac,label,valTxt,plain){const f=Math.max(0,Math.min(1,frac||0)),c=2*Math.PI*26,col=plain?"--color-accent":f>=.8?"--color-negative":f>=.5?"--color-warning":"--color-positive";
+  return`<div class="ring" role="img" aria-label="${label}: ${valTxt}"><div class="rg"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="${tok("--color-border")}" stroke-width="6"/><circle cx="32" cy="32" r="26" fill="none" stroke="${tok(col)}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c*f).toFixed(1)} ${c.toFixed(1)}"/></svg><div class="rv">${valTxt}</div></div><small>${label}</small></div>`}
+function countUp(el,a,b,fmt){if(reduceMotion||Math.abs(b-a)<0.005){el.innerHTML=fmt(b);return}const t0=performance.now(),D=600;const step=n=>{const k=Math.min(1,(n-t0)/D),e=1-Math.pow(1-k,3);el.innerHTML=fmt(a+(b-a)*e);if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)}
 function confirmBox(title,html,okText,danger){return new Promise(res=>{$("#mbox").innerHTML=`<h3>${title}</h3><div class="body">${html}</div><div class="actions stack-top-lg"><button class="btn" id="m-no">Cancel</button><button class="btn ${danger?"red":"gold"}" id="m-ok">${okText}</button></div>`;$("#modal").hidden=false;
   const done=v=>{$("#modal").hidden=true;res(v)};$("#m-no").onclick=()=>done(false);$("#m-ok").onclick=()=>{const c=$("#m-chk");if(c&&!c.checked){toast("Tick the box to confirm");return}done(true)}})}
 
@@ -157,21 +181,21 @@ function showGate(setup){$("#gate").hidden=false;$("#f-setup").hidden=!setup;$("
 $("#f-setup").onsubmit=async e=>{e.preventDefault();$("#su-err").textContent="";if($("#su-pw").value!==$("#su-pw2").value){$("#su-err").textContent="Passwords don't match";return}
   try{await api("setup",{code:$("#su-code").value,password:$("#su-pw").value});enter()}catch(err){$("#su-err").textContent=err.message}};
 $("#f-login").onsubmit=async e=>{e.preventDefault();$("#li-err").textContent="";try{await api("login",{password:$("#li-pw").value,remember:$("#li-rem").checked});$("#li-pw").value="";enter()}catch(err){$("#li-err").textContent=err.message}};
-function enter(){$("#gate").hidden=true;refresh();loadSettings();clearInterval(poll);poll=setInterval(()=>{if(!document.hidden)refresh()},10000)}
+function enter(){$("#gate").hidden=true;refresh();loadSettings();loadScanData();clearInterval(poll);poll=setInterval(()=>{if(document.hidden)return;refresh();if(Date.now()-scanFetched>30000)loadScanData()},10000)}
 
 /* ---------- nav ---------- */
 function go(v){view=v;$$(".view").forEach(s=>s.hidden=s.id!=="v-"+v);$$(".nav button").forEach(b=>b.toggleAttribute("aria-current",b.dataset.v===v)||b.setAttribute("aria-current",b.dataset.v===v?"page":"false"));window.scrollTo({top:0});
-  if(v==="scan")loadScan();if(v==="trades")loadTrades();if(v==="set")loadSettings();if(v==="log")loadLog()}
+  if(v==="scan")loadScan();if(v==="trades")loadTrades();if(v==="set")loadSettings();if(v==="log")loadLog();if(v==="bt"){labCur();renderLab()}}
 $$(".nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
 
 /* ---------- home ---------- */
 async function refresh(){try{ST=await api("status?acct="+ACCT);renderHome()}catch(e){}}
-function setAcct(a){ACCT=a;try{localStorage.setItem("tp_acct",a)}catch(e){}ST=null;refresh();if(view==="trades")loadTrades();if(view==="log")loadLog()}
+function setAcct(a){ACCT=a;lastTotal=null;try{localStorage.setItem("tp_acct",a)}catch(e){}ST=null;refresh();if(view==="trades")loadTrades();if(view==="log")loadLog()}
 $$("[data-acct]").forEach(b=>b.onclick=()=>setAcct(b.dataset.acct));
 function renderHome(){const s=ST,live=s.acct==="live",total=s.realized+s.unrealized;
   $$("[data-acct]").forEach(b=>{const a=b.dataset.acct,o=s.other[a];b.setAttribute("aria-selected",a===ACCT);b.classList.toggle("on",o.running);b.querySelector("small").textContent=(o.total?sgn(o.total):"")+(o.halt?" ⚠":"");b.querySelector("small").className=cls(o.total)});
   $("#p-run").className="pill"+(s.running?" on":"");$("#p-run").querySelector("span").textContent=s.running?"Running":"Stopped";
-  $("#h-total").innerHTML=`<span class="${cls(total)}">${sgn(total)}</span> <span class="ccy">${CC(s)}</span>`;
+  const from=lastTotal==null?total:lastTotal;lastTotal=total;countUp($("#h-total"),from,total,v=>`<span class="${cls(total)}">${sgn(v)}</span> <span class="ccy">${CC(s)}</span>`);
   $("#h-aed").textContent=`${CC(s)==="AED"?"On BitOasis":"≈ "+sgn(total*s.aed)+" AED"} · closed ${sgn(s.realized)} · open ${sgn(s.unrealized)}`;
   $("#h-today").textContent=sgn(s.today);$("#h-today").className="num "+cls(s.today);$("#h-win").textContent=s.trades?Math.round(s.winRate)+"%":"—";$("#h-trades").textContent=s.trades;
   $("#h-upd").textContent=s.scanAt?"scanned "+ago(s.scanAt):"";
@@ -190,29 +214,52 @@ function renderHome(){const s=ST,live=s.acct==="live",total=s.realized+s.unreali
   $("#h-posn").textContent=s.positions.length?s.positions.length+" open":"";
   const SHIELD='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>';
   $("#h-pos").innerHTML=s.positions.length?s.positions.map(p=>{const lo=p.stop,hi=p.tp||Math.max(p.price,p.peak||0,p.entry+(p.stopDist||p.entry*.02)*2),span=hi-lo||1,at=Math.max(0,Math.min(100,(p.price-lo)/span*100)),en=(p.entry-lo)/span*100,showEn=en>=0&&en<=100;
-    const stopTag=p.trailed?"Trailing stop":p.stop>=p.entry?"Stop · breakeven":"Stop-loss";
+    const stopTag=p.trailed?"Trailing stop":p.stop>=p.entry?"Stop · breakeven":"Stop-loss",sr=SCAN&&SCAN.rows.find(r=>r.symbol===p.symbol);
+    const mini=sr&&sr.spark&&sr.spark.length>1?`<div class="mini">${sparkSvg(sr.spark.concat(p.price),{w:300,h:56,area:true,lines:[{v:p.entry,c:"--color-accent"},{v:p.stop,c:"--color-negative"}]})}</div><div class="mini-l"><span>Last ${sr.spark.length} candles</span><span><span class="accent">— bought</span> · <span class="down">— stop</span></span></div>`:"";
     return `<div class="pos"><div class="pos-h"><span class="coin">${esc(coin(p.symbol).slice(0,4))}</span><div class="grow"><span class="sym">${coin(p.symbol)} <span class="tiny mut">/${CC(s)}</span></span><span class="tiny mut num">Bought ${px(p.entry)} · now ${px(p.price)} · ${ago(p.openedAt)}</span></div>
-      <div class="pnl ${cls(p.pnl)}"><b>${sgn(p.pct,1)}%</b><span>${sgn(p.pnl)} ${CC(s)}</span></div></div>
+      <div class="pnl ${cls(p.pnl)}"><b>${sgn(p.pct,1)}%</b><span>${sgn(p.pnl)} ${CC(s)}</span></div></div>${mini}
     <div class="ladder"><div class="range" role="img" aria-label="Price ${px(p.price)} between stop ${px(p.stop)} and ${p.tp?"target "+px(p.tp):"the trailing zone"}">${showEn?`<s style="left:${en}%" title="Bought here"></s>`:""}<b style="left:${at}%"></b></div>
       <div class="ladder-l"><span class="down">${stopTag}<b>${px(p.stop)}</b></span><span>Bought<b>${px(p.entry)}</b></span>${p.tp?`<span class="up">Target<b>${px(p.tp)}</b></span>`:`<span class="up">No fixed target<b>Trailing</b></span>`}</div></div>
     <div class="pos-f"><span class="shield">${p.stopOrderId?SHIELD+"Stop-loss placed on "+esc(s.exName):ST.acct==="live"?SHIELD+"Stop watched by the bot":"Demo trade · pretend money"}</span><button class="btn sm red" data-sell="${p.id}">Sell now</button></div></div>`}).join(""):`<div class="empty"><b>No open trades</b>${s.running?"The bot is watching the market for a buy signal.":"Start the bot to begin."}</div>`;
   $$("[data-sell]").forEach(b=>b.onclick=async()=>{const p=ST.positions.find(x=>x.id===b.dataset.sell);if(!await confirmBox(`Sell ${coin(p.symbol)} now?`,`Current result: <b class="${cls(p.pnl)}">${sgn(p.pnl)} ${CC(ST)}</b>. This sells at the market price.`,"Sell now",true))return;
     b.disabled=true;try{const r=await api("close",{acct:ACCT,id:p.id});ST=r.status;renderHome();toast(`Sold: ${sgn(r.trade.pnl)} ${CC(ST)}`)}catch(e){toast(e.message);b.disabled=false}});
+  const L=s.limits||{dailyLossPct:5,maxLossPct:20,maxOpen:2},dayUsed=Math.max(0,-s.today)/(bud*L.dailyLossPct/100),totUsed=Math.max(0,-total)/(bud*L.maxLossPct/100);
+  $("#h-health").innerHTML=ring(dayUsed,`Daily loss limit used (${L.dailyLossPct}%)`,Math.round(dayUsed*100)+"%")+ring(totUsed,`Max loss limit used (${L.maxLossPct}%)`,Math.round(totUsed*100)+"%")+ring(s.positions.length/L.maxOpen,"Trade slots in use",`${s.positions.length}/${L.maxOpen}`,true);
+  const si=s.strategy||{};$("#h-strat").innerHTML=`${FLASK}<div><b>${esc(si.name||"Strategy")} · ${esc(si.interval||"")}</b><span>${esc(si.desc||"")}</span></div><button class="btn sm" type="button" id="h-lab">Lab</button>`;$("#h-lab").onclick=()=>go("bt");
+  const rows=SCAN?SCAN.rows:[],cnt=f=>rows.filter(f).length;
+  $("#h-mood").innerHTML=rows.length?[["buy","buy signal"],["watch","in an uptrend"],["avoid","in a downtrend"]].map(([k,n])=>{const c=cnt(r=>r.status===k);return c?`<span class="chip ${k}">${c} ${n}</span>`:""}).join("")+`<span class="chip">${cnt(r=>r.regime==="trend")} trending · ${cnt(r=>r.regime==="range")} sideways</span>`:"";
+  $("#h-next").textContent=s.scanAt?`next scan in ${Math.max(0,Math.ceil((s.scanAt+5*60e3-Date.now())/60e3))} min`:"";
 }
 const tok=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-function spark(eq){const svg=$("#h-spark"),grid=tok("--color-border");const pts=[{v:0},...(eq||[])],flat=pts.length<2;svg.classList.toggle("flat",flat);$("#h-sparknote").hidden=!flat;if(flat){svg.innerHTML=`<line x1="0" y1="50" x2="300" y2="50" stroke="${grid}" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;return}
+function spark(eq){const svg=$("#h-spark"),grid=tok("--color-border");const pts=[{v:0},...(eq||[])],flat=pts.length<2;svg.classList.toggle("flat",flat);$("#h-sparknote").hidden=!flat;EQ=null;$("#h-tip").hidden=true;
+  if(flat){svg.innerHTML=`<line x1="0" y1="50" x2="300" y2="50" stroke="${grid}" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;return}
   const vs=pts.map(p=>p.v),mn=Math.min(0,...vs),mx=Math.max(0,...vs),rg=mx-mn||1,X=i=>i/(pts.length-1)*300,Y=v=>92-(v-mn)/rg*84;
   const d=pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(""),last=vs[vs.length-1],col=tok(last>=0?"--color-positive":"--color-negative");
-  svg.innerHTML=`<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><line x1="0" x2="300" y1="${Y(0)}" y2="${Y(0)}" stroke="${grid}" stroke-dasharray="4 4"/><path d="${d}L300,100L0,100Z" fill="url(#sg)"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`}
+  svg.innerHTML=`<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><line x1="0" x2="300" y1="${Y(0)}" y2="${Y(0)}" stroke="${grid}" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/><path d="${d}L300,100L0,100Z" fill="url(#sg)"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><line id="h-cur" x1="0" x2="0" y1="0" y2="100" stroke="${tok("--color-text-soft")}" stroke-width="1" opacity="0" vector-effect="non-scaling-stroke"/>`;
+  EQ=pts.map((p,i)=>({x:X(i),v:p.v,t:p.t}))}
+/* touch or hover the profit chart to read any point */
+$("#h-chart").addEventListener("pointermove",e=>{if(!EQ)return;const r=$("#h-spark").getBoundingClientRect(),x=(e.clientX-r.left)/r.width*300;let b=EQ[0];for(const p of EQ)if(Math.abs(p.x-x)<Math.abs(b.x-x))b=p;
+  const tip=$("#h-tip");tip.hidden=false;tip.style.left=Math.max(60,Math.min(r.width-60,b.x/300*r.width))+"px";tip.innerHTML=`<b class="${cls(b.v)}">${sgn(b.v)} ${CC(ST)}</b> · ${b.t?dt(b.t):"start"}`;const ln=$("#h-cur");if(ln){ln.setAttribute("x1",b.x);ln.setAttribute("x2",b.x);ln.setAttribute("opacity",".6")}});
+$("#h-chart").addEventListener("pointerleave",()=>{$("#h-tip").hidden=true;const ln=$("#h-cur");if(ln)ln.setAttribute("opacity","0")});
 $("#b-toggle").onclick=async()=>{const s=ST;try{if(s.running){ST=await api("stop",{acct:ACCT});toast("Bot stopped. Open trades stay protected.")}
   else{if(s.acct==="live"&&!await confirmBox("Start trading with real money?",`The bot will buy and sell on your ${esc(s.exName)} account using up to <b>${usd(s.budget,0)} ${CC(s)}</b>${inAed(s,s.budget)}, ${usd(s.perTrade,0)} ${CC(s)} per trade. You can lose money.<label class="chk"><input type="checkbox" id="m-chk"> I understand the risk</label>`,"Start live",true))return;ST=await api("start",{acct:ACCT});toast(ACCT==="live"?"Live bot started":"Demo bot started")}renderHome()}catch(e){toast(e.message)}};
 $("#b-sellall").onclick=async()=>{if(!await confirmBox("Sell everything and stop?",`The bot stops and sells all ${ST.positions.length} open trade(s) at the market price.`,"Sell all & stop",true))return;try{const r=await api("sellall",{acct:ACCT});ST=r.status;renderHome();toast(`Stopped · ${r.sold.length} sold`)}catch(e){toast(e.message)}};
 
-/* ---------- scanner ---------- */
-async function loadScan(){try{const d=await api("scan");$("#s-at").textContent=d.at?"Updated "+ago(d.at):"Loading… the first scan takes a minute";
-  $("#s-list").innerHTML=d.rows.length?d.rows.map(r=>`<div class="srow${r.signal?" sig":""}"><div class="row"><div class="sr-name"><span class="coin sm">${esc(coin(r.symbol).slice(0,4))}</span><div><b class="sym">${coin(r.symbol)}</b><span class="tiny mut num">${r.price?px(r.price):""}</span></div></div><span class="sr-tags">${r.onBO===false?'<span class="chip avoid">Not on BitOasis</span>':""}<span class="chip ${r.status}">${esc(r.label)}</span></span></div>
+/* ---------- scanner & ticker ---------- */
+async function loadScanData(){try{SCAN=await api("scan");scanFetched=Date.now();renderTicker();if(ST)renderHome();if(view==="scan")renderScan()}catch(e){}}
+async function loadScan(){await loadScanData();if(!SCAN)$("#s-list").innerHTML=`<div class="empty">${esc(OFFLINE)}</div>`}
+function renderTicker(){const el=$("#h-ticker");if(!SCAN||!SCAN.rows.length){el.innerHTML='<div class="tk skel"></div><div class="tk skel"></div><div class="tk skel"></div>';return}
+  el.innerHTML=SCAN.rows.map(r=>`<button type="button" class="tk${r.signal?" sig":""}" data-tk="${esc(r.symbol)}" aria-label="${coin(r.symbol)} ${r.price?px(r.price):""}, ${esc(r.label||"")}"><b><i class="${r.status}"></i>${coin(r.symbol)}</b><span>${r.price?px(r.price):"—"} <span class="${cls(r.mom24||0)}">${r.price?sgn(r.mom24,1)+"%":""}</span></span>${sparkSvg(r.spark,{w:58,h:28})}</button>`).join("");
+  $$("[data-tk]").forEach(b=>b.onclick=()=>go("scan"))}
+const SF=[["all","All",()=>true],["buy","Signals",r=>r.signal],["up","Uptrend",r=>r.status==="watch"||r.status==="buy"],["range","Sideways",r=>r.regime==="range"],["avoid","Downtrend",r=>r.status==="avoid"]];
+function renderScan(){const d=SCAN;$("#s-at").textContent=d.at?"Updated "+ago(d.at):"Loading… the first scan takes a minute";
+  $("#s-filt").innerHTML=SF.map(([k,n,f])=>`<button type="button" data-f="${k}" aria-pressed="${sFilt===k}">${n}<b>${d.rows.filter(f).length}</b></button>`).join("");
+  $$("#s-filt [data-f]").forEach(b=>b.onclick=()=>{sFilt=b.dataset.f;renderScan()});
+  const rows=d.rows.filter((SF.find(x=>x[0]===sFilt)||SF[0])[2]);
+  $("#s-list").innerHTML=rows.length?rows.map(r=>`<div class="srow${r.signal?" sig":""}"><div class="row"><div class="sr-name"><span class="coin sm">${esc(coin(r.symbol).slice(0,4))}</span><div><b class="sym">${coin(r.symbol)}</b><span class="tiny mut num">${r.price?px(r.price):""}</span></div></div><span class="sr-tags">${r.onBO===false?'<span class="chip avoid">Not on BitOasis</span>':""}<span class="chip ${r.status}">${esc(r.label)}</span></span></div>
+    ${r.spark&&r.spark.length>1?`<div class="mini">${sparkSvg(r.spark,{w:300,h:56,area:true})}</div><div class="mini-l"><span>Last ${r.spark.length} candles</span><span class="regime ${r.regime||""}">${r.regime==="trend"?"Trending":r.regime==="range"?"Sideways":"Mixed"} · ADX ${Math.round(r.adx||0)}</span></div>`:""}
     ${r.price?`<div class="metrics num"><div><span>RSI</span><b>${r.rsi.toFixed(0)}</b></div><div><span>Trend</span><b class="${cls(r.trendPct)}">${sgn(r.trendPct,1)}%</b></div><div><span>24 candles</span><b class="${cls(r.mom24)}">${sgn(r.mom24,1)}%</b></div><div><span>Stop</span><b>${r.stopPct.toFixed(1)}%</b></div></div><div class="score-l"><span>Signal strength</span><b>${Math.round(r.score)}/100</b></div><div class="score"><i style="width:${r.score}%"></i></div>`:""}
-    <details><summary>Why?</summary><ul class="why">${(r.reasons||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details></div>`).join(""):`<div class="empty"><b>Scanning…</b>Waiting for the first scan.</div>`}catch(e){$("#s-list").innerHTML=`<div class="empty">${esc(e.message)}</div>`}}
+    <details><summary>Why?</summary><ul class="why">${(r.reasons||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details></div>`).join(""):`<div class="empty"><b>${d.rows.length?"No coins match":"Scanning…"}</b>${d.rows.length?"Try another filter.":"Waiting for the first scan."}</div>`}
 $("#s-ref").onclick=loadScan;
 
 /* ---------- trades ---------- */
@@ -231,6 +278,24 @@ $("#bt-run").onclick=async()=>{const b=$("#bt-run");b.disabled=true;b.textConten
     ${T.pnl<0?`<div class="banner warn">This strategy lost money over this period. Try a different timeframe or coins, and keep using the Demo account.</div>`:""}`}
   catch(e){$("#bt-out").innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}b.disabled=false;b.textContent="Run backtest again"};
 
+/* ---------- strategy lab ---------- */
+function stratInfo(){return(SET&&SET.strategyInfo)||(ST&&ST.strategy)||{}}
+function labCur(){const si=stratInfo(),pr=SET&&SET.presets?SET.presets.find(p=>p.id===si.id):null;
+  $("#lab-cur").innerHTML=`<div class="lab-cur"><span class="coin">${FLASK}</span><div class="grow"><span class="lbl">Strategy in use</span><b style="display:block;font-size:20px;margin-top:2px">${esc(si.name||"—")} · ${esc(si.interval||"")}</b><span class="tiny mut">${esc(si.desc||"")}${pr&&pr.src?" · "+esc(pr.src):""}</span></div></div>`}
+function renderLab(){const L=LAB,o=$("#lab-out");if(!L){o.innerHTML="";return}const days=Math.max(0,...L.rows.map(r=>r.days));
+  o.innerHTML=`<div class="banner info"><div>Ranked by profit over about the last ${days} days on ${esc(L.coins.join(", "))}, ${usd(L.perTrade,0)} per trade, fees included · tested ${ago(L.at)}. Markets change, so a winner here isn't guaranteed to keep winning. Try a new strategy on the Demo account first.</div></div>`+
+  L.rows.map((r,i)=>`<div class="rank${i===0?" best":""}${r.current?" cur":""}"><div class="rank-h"><span class="rank-n${i<3?" g"+(i+1):""}">${i+1}</span><div><b>${esc(r.name)}<span class="chip">${esc(r.interval)}</span></b></div><div class="rank-p"><b class="${cls(r.pnl)}">${sgn(r.pnl)}</b><span>${sgn(r.pnlPct,1)}% of budget</span></div></div>
+    <p class="rank-d">${esc(r.desc)}<span>${esc(r.src)}</span></p>
+    <div class="metrics num"><div><span>Trades</span><b>${r.trades}</b></div><div><span>Won</span><b>${r.trades?r.winRate+"%":"—"}</b></div><div><span>Worst dip</span><b class="${r.maxDD?"down":""}">${r.maxDD?"−"+usd(r.maxDD):"0.00"}</b></div><div><span>Profit factor</span><b>${r.profitFactor==null?(r.trades?"∞":"—"):r.profitFactor.toFixed(2)}</b></div></div>
+    ${r.curve.length>1?`<div class="mini">${sparkSvg([0].concat(r.curve),{w:300,h:56,area:true})}</div>`:""}
+    <div class="rank-f"><span class="tiny mut">Just holding: ${sgn(r.holdPct,1)}%</span>${r.current?'<span class="badge-cur">In use</span>':`<button class="btn sm${i===0?" gold":""}" type="button" data-use="${esc(r.id)}">Use this strategy</button>`}</div></div>`).join("")+
+  `<p class="hint">"Won" is the share of winning trades. "Profit factor" is money won ÷ money lost (above 1.5 is good). "Worst dip" is the biggest drop from a high point. Few trades means the result is mostly luck.</p>`;
+  $$("[data-use]").forEach(b=>b.onclick=async()=>{const r=LAB.rows.find(x=>x.id===b.dataset.use);if(!await confirmBox(`Use ${esc(r.name)} (${esc(r.interval)})?`,"Both accounts use these buy and sell rules from the next scan. Your budgets and loss limits stay the same, and open trades keep their current stop-loss and exit.","Use this strategy",false))return;
+    try{SET=await api("settings",{strategy:{preset:r.id}});LAB.rows.forEach(x=>x.current=x.id===r.id);toast(`Now using ${r.name}`);labCur();renderLab();refresh();loadScanData()}catch(e){toast(e.message)}})}
+$("#lab-run").onclick=async()=>{const b=$("#lab-run");b.disabled=true;b.textContent="Comparing… (up to a minute)";$("#lab-out").innerHTML='<div class="skel block"></div><div class="skel block"></div><div class="skel block"></div>';
+  try{let r=await api("compare",{acct:ACCT,force:true});for(let i=0;r.pending&&i<60;i++){await new Promise(z=>setTimeout(z,3000));r=await api("compare",{acct:ACCT})}if(r.pending)throw new Error("Still working. Try again in a minute.");LAB=r;renderLab()}
+  catch(e){$("#lab-out").innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}b.disabled=false;b.textContent="Compare again"};
+
 /* ---------- settings ---------- */
 async function loadSettings(){try{SET=await api("settings");const s=SET;
   $("#k-key").value="";$("#k-key").placeholder=s.keys.key||"Paste your API key";$("#k-sec").placeholder=s.keys.secret?"Saved · leave empty to keep":"Paste your secret key";
@@ -239,6 +304,7 @@ async function loadSettings(){try{SET=await api("settings");const s=SET;
   $("#c-watch").value=s.watch.map(coin).join(", ");$$(".lccy").forEach(x=>x.textContent=s.liveCcy);
   const bo=s.liveExchange==="bitoasis";$$("#c-ex button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===s.liveExchange));$("#bo-card").hidden=!bo;$("#bn-card").hidden=bo;$("#c-per").min=bo?25:6;
   $("#c-exhint").innerHTML=bo?"Real orders go to <b>BitOasis in AED</b>. Buy/sell signals still come from Binance's public price charts (free, no Binance account needed). Only coins BitOasis lists are traded.":"Real orders go to your <b>Binance Spot wallet in USDT</b>.";
+  const si=s.strategyInfo||{};$("#c-strat").innerHTML=`${FLASK}<div><b>${esc(si.name||"Strategy")} · ${esc(si.interval||"")}</b><span>${esc(si.desc||"")}</span></div><button class="btn sm" type="button" id="c-lab">Change</button>`;$("#c-lab").onclick=()=>go("bt");
   $("#bo-tok").value="";$("#bo-tok").placeholder=s.bitoasis.token?`Saved (${s.bitoasis.token}) · leave empty to keep`:"Paste your BitOasis token";$("#tg-chat").value=s.telegram.chat||"";$("#tg-tok").placeholder=s.telegram.token?"Saved · leave empty to keep":"123456:ABC-…";aedHint()}catch(e){}}
 function aedHint(){const b=+$("#c-budget").value||0,p=+$("#c-per").value||0;if(SET&&SET.liveCcy==="AED"){$("#c-aed").textContent=`≈ ${usd(b/3.6725,0)} USD budget · ${usd(p/3.6725,0)} USD per trade. Minimum 25 AED per trade. Keep at least the budget in AED in your BitOasis wallet. BitOasis fees are higher than Binance's, so bigger trades lose less to fees.`;return}$("#c-aed").textContent=`≈ ${usd(b*3.6725,0)} AED budget · ${usd(p*3.6725,0)} AED per trade. Binance's minimum trade is about 5 USDT. Keep this much USDT in your Binance Spot wallet.`}
 $("#c-budget").oninput=aedHint;$("#c-per").oninput=aedHint;

@@ -20,7 +20,7 @@ Each account has its own budget, trades, profit and Start/Stop button, so you ca
 
 ## How it trades
 
-**Strategy: trend pullback, with free indicators and no paid AI.** Every 5 minutes it scans your coins (BTC, ETH, SOL… against USDT) and buys only when all of these are true:
+Every 5 minutes it scans your coins (BTC, ETH, SOL… against USDT) with free indicators, no paid AI, and buys only when the chosen strategy gives a signal. The default strategy is **Pullback + trailing (1h)**:
 
 1. **Uptrend:** the price and the 50-candle average are above the 200-candle average, and that average is rising.
 2. **Recent dip:** RSI fell below 42 in the last few candles.
@@ -29,9 +29,26 @@ Each account has its own budget, trades, profit and Start/Stop button, so you ca
 **Every trade gets:**
 
 - **A stop-loss:** 2 × ATR below the buy price (between 1.5% and your max %). In Live it's placed **on Binance itself**, so it protects you even if the server is down.
-- **A target:** reward:risk × the stop distance (2× by default).
-- **Breakeven:** once the price has risen by 1× the stop distance, the stop moves up to the buy price.
-- **A time exit:** it sells if there's no progress after 72 hours (you can change this).
+- **Breakeven:** once the price has risen by 1.5× the stop distance, the stop moves up just above the buy price.
+- **A trailing stop** (most strategies): no fixed target; after +1× the risk the stop follows the price up, so winners can keep running.
+  Strategies with a **fixed target** (Pullback + fixed target, Bollinger bounce) sell at their target instead.
+- **A time exit:** it sells if there's no progress after the strategy's time limit (72 hours by default).
+
+### Strategy Lab
+
+Open **Lab** to compare 10 strategies on *your* coins over the last few months of real Binance prices, with fees and slippage, ranked by profit. Tap **Use this strategy** to switch; budgets and loss limits stay the same.
+
+| Strategy | Idea | Works best when |
+|---|---|---|
+| Pullback + trailing (1h, 4h) | Buy a short dip in an uptrend | Steady uptrends |
+| Pullback + fixed target (1h) | Same entry, sell at 2× the risk | Choppy uptrends |
+| Breakout / Donchian (4h) | Buy a new 20-candle high (the classic "turtle" rule) | Strong trends |
+| Supertrend (1h, 4h) | Buy when the ATR Supertrend line flips up (popular on TradingView and 3Commas) | Strong trends |
+| MACD momentum (4h) | Buy a MACD cross above its signal line, above the 200 average | Trends starting |
+| Bollinger bounce (1h) | Buy an oversold dip below the lower band, sell at the middle band (a common open-source bot strategy) | Sideways markets |
+| Adaptive (1h, 4h) | Measures trend strength (ADX): trending → dip or breakout with a trailing stop; sideways → Bollinger bounce | Changing markets |
+
+**Be careful with rankings.** No bot or strategy has a proven "highest success rate". Trend strategies lose in sideways markets and bounce strategies lose when a trend starts. A result with few trades is mostly luck, and past results don't predict the future. Try a new strategy on the Demo account for a few weeks before using it live.
 
 **Safety limits:**
 

@@ -150,6 +150,22 @@ try {
   r = await api("backtest", { acct: "demo", force: true });
   ok(r.status === 200 && r.d.symbols.length === 3 && r.d.symbols.every((s) => !s.error), `backtest ran on 3 coins: ${r.d.total.trades} trades, ${r.d.total.pnl.toFixed(2)} USDT`);
 
+  console.log("Strategy Lab");
+  const { PRESETS, manage } = await import("../src/strategy.js");
+  r = await api("compare", { acct: "demo", force: true });
+  ok(r.status === 200 && r.d.rows.length === PRESETS.length && r.d.rows.every((x, i, a) => !i || a[i - 1].pnl >= x.pnl), `compared ${r.d.rows && r.d.rows.length} strategies on the watched coins, ranked by profit (best: ${r.d.rows && r.d.rows[0].name} ${r.d.rows && r.d.rows[0].pnl} USDT)`);
+  ok(r.d.rows.every((x) => typeof x.winRate === "number" && typeof x.maxDD === "number" && Array.isArray(x.curve)) && r.d.rows.filter((x) => x.current).length === 1, "every strategy has win rate, worst dip and a profit curve; exactly one is marked as in use");
+  r = await api("settings", { strategy: { preset: "st-4h" } });
+  ok(r.status === 200 && r.d.strategy.entry === "supertrend" && r.d.strategy.interval === "4h" && r.d.strategyInfo.name === "Supertrend", "choosing Supertrend switches the bot's entry rules and timeframe");
+  ok(r.d.strategy.maxStopPct === 6 && r.d.dailyLossPct === 1, "choosing a strategy keeps the risk limits");
+  ok((await api("settings", { strategy: { preset: "nope" } })).status === 400, "unknown strategy rejected");
+  ok((await api("status?acct=demo")).d.strategy.name === "Supertrend", "status shows the strategy in use");
+  await api("settings", { strategy: { preset: "pb-trail-1h" } });
+  const tp = { entry: 100, stop: 97, tp: 104, stopDist: 3, peak: 100, openedAt: Date.now(), exit: "target" };
+  ok(manage(tp, { high: 104.5, low: 101, price: 104 }).reason === "Take-profit", "a bounce trade sells at its own target even while the strategy trails");
+  const tr = { entry: 100, stop: 97, tp: 104, stopDist: 3, peak: 100, openedAt: Date.now(), exit: "trail" };
+  ok(!manage(tr, { high: 104.5, low: 101, price: 104 }).exit, "a trend trade ignores an old target and keeps trailing");
+
   console.log("Password");
   ok((await api("password", { current: "nope", password: "newpassword1" })).status === 400, "wrong current password rejected");
   ok((await api("password", { current: "longpassword", password: "newpassword1" })).status === 200, "password changed");

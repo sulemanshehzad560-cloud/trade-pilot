@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Trade Pilot Design System — "Night Gold" v2.0
+   Trade Pilot Design System — "Night Gold" v3.0
    A dark, calm trading UI: near-black surfaces, one gold brand accent,
    green for profit, red for loss and real-money risk.
 
@@ -380,6 +380,84 @@ ul.why{margin:var(--space-2) 0 0;padding-left:18px;font-size:var(--font-size-sm)
 @keyframes sheetin{from{transform:translateY(30px);opacity:.5}}
 .mbox h3{margin:0 0 var(--space-2);font-size:var(--font-size-xl)}
 .mbox .body{font-size:var(--font-size-md);color:var(--color-text-soft);line-height:1.55}
+
+/* Market ticker strip */
+.ticker{display:flex;gap:var(--space-2);overflow-x:auto;scrollbar-width:none;margin:0 calc(-1 * var(--space-4)) var(--space-4);padding:0 var(--space-4);scroll-snap-type:x proximity}
+.ticker::-webkit-scrollbar{display:none}
+.tk{flex:0 0 auto;scroll-snap-align:start;display:grid;grid-template-columns:auto 58px;grid-template-rows:auto auto;gap:0 var(--space-2-5);align-items:center;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:var(--space-2) var(--space-3);min-width:148px;cursor:pointer;color:var(--color-text);text-align:left}
+.tk:hover{border-color:var(--color-border-strong)}
+.tk.sig{border-color:rgba(var(--tp-green-rgb),.55)}
+.tk b{font-size:var(--font-size-sm);display:flex;align-items:center;gap:6px}
+.tk b i{width:6px;height:6px;border-radius:50%;background:var(--color-text-muted)}
+.tk b i.buy{background:var(--color-positive);box-shadow:var(--glow-positive)}.tk b i.watch{background:var(--color-accent)}.tk b i.avoid{background:var(--color-negative)}
+.tk span{font-size:var(--font-size-2xs);font-variant-numeric:tabular-nums;color:var(--color-text-muted)}
+.tk svg{grid-row:1/3;grid-column:2;width:58px;height:28px}
+.tk.skel{min-width:148px;height:52px}
+
+/* Mini line charts (sparklines) */
+.mini{display:block;width:100%;height:56px;margin-top:var(--space-3)}
+.mini svg{display:block;width:100%;height:100%}
+.mini-l{display:flex;justify-content:space-between;font-size:10.5px;color:var(--color-text-muted);margin-top:2px}
+
+/* Interactive chart tooltip */
+.chart{position:relative}
+.chart .tip{position:absolute;top:0;transform:translateX(-50%);pointer-events:none;background:var(--color-surface-overlay);border:1px solid var(--color-accent-border);border-radius:var(--radius-sm);padding:4px 9px;font-size:var(--font-size-2xs);white-space:nowrap;box-shadow:var(--shadow-md);z-index:2}
+.chart .tip b{font-variant-numeric:tabular-nums}
+.chart .tip[hidden]{display:none}
+
+/* Bot health: ring gauges */
+.health{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-2);margin-top:var(--space-1)}
+.ring{display:flex;flex-direction:column;align-items:center;text-align:center;background:var(--color-field);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-1) var(--space-2-5)}
+.ring .rg{position:relative;width:64px;height:64px}
+.ring svg{width:64px;height:64px;transform:rotate(-90deg);display:block}
+.ring .rv{position:absolute;inset:0;display:grid;place-items:center;font-size:var(--font-size-md);font-weight:var(--font-weight-heavy);font-variant-numeric:tabular-nums}
+.ring small{margin-top:var(--space-2-5);font-size:10.5px;color:var(--color-text-muted);line-height:1.3}
+.strat-chip{display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-3);padding:var(--space-2-5) var(--space-3);border-radius:var(--radius-md);background:var(--color-accent-tint);border:1px solid var(--color-accent-border)}
+.strat-chip svg{width:20px;height:20px;color:var(--color-accent-hi);flex-shrink:0}
+.strat-chip div{flex:1;min-width:0}
+.strat-chip b{display:block;font-size:var(--font-size-sm)}
+.strat-chip span{display:block;font-size:var(--font-size-2xs);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mood{display:flex;gap:var(--space-1-5);flex-wrap:wrap;margin-top:var(--space-3)}
+
+/* Filters */
+.filters{display:flex;gap:var(--space-1-5);overflow-x:auto;scrollbar-width:none;margin:0 0 var(--space-3)}
+.filters::-webkit-scrollbar{display:none}
+.filters button{flex:0 0 auto;border:1px solid var(--color-border);background:var(--color-field);border-radius:var(--radius-full);padding:7px 13px;font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:var(--color-text-muted);cursor:pointer}
+.filters button[aria-pressed=true]{color:var(--color-text);border-color:var(--color-accent-border);background:var(--color-accent-tint)}
+.filters b{margin-left:4px;color:var(--color-accent)}
+.regime{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:var(--font-weight-bold);color:var(--color-text-muted)}
+.regime.trend{color:var(--color-positive)}.regime.range{color:var(--color-info)}
+
+/* Strategy Lab leaderboard */
+.lab-cur{display:flex;align-items:center;gap:var(--space-3)}
+.lab-cur .coin{width:46px;height:46px}
+.lab-cur svg{width:22px;height:22px}
+.rank{position:relative;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-xl);padding:var(--space-4);margin-bottom:var(--space-3)}
+.rank.best{border-color:var(--color-accent-border);background:radial-gradient(ellipse at 100% 0%,var(--color-accent-tint),transparent 55%),var(--color-surface)}
+.rank.cur{box-shadow:inset 0 0 0 1px rgba(var(--tp-green-rgb),.5)}
+.rank-h{display:flex;align-items:flex-start;gap:var(--space-3)}
+.rank-n{flex-shrink:0;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:var(--font-weight-heavy);font-size:var(--font-size-md);background:var(--color-field);border:1px solid var(--color-border);color:var(--color-text-muted)}
+.rank-n.g1{background:var(--gradient-accent);color:var(--color-on-accent);border-color:transparent}
+.rank-n.g2{background:linear-gradient(135deg,#e6e9ef,#9aa2b1);color:#111;border-color:transparent}
+.rank-n.g3{background:linear-gradient(135deg,#e7b48a,#9a5f33);color:#1a0f07;border-color:transparent}
+.rank-h>div{flex:1;min-width:0}
+.rank-h b{display:block;font-size:var(--font-size-lg);line-height:1.3}
+.rank-h b .chip{margin-left:4px}
+.rank-d{font-size:var(--font-size-xs);color:var(--color-text-muted);margin:var(--space-2-5) 0 0;line-height:1.45}
+.rank-d span{display:block;color:var(--color-accent);font-size:var(--font-size-2xs);margin-top:2px}
+.rank-p{text-align:right;flex-shrink:0}
+.rank-p b{font-size:var(--font-size-lg);font-variant-numeric:tabular-nums}
+.rank-p span{display:block;font-size:var(--font-size-2xs);color:var(--color-text-muted)}
+.rank .metrics{grid-template-columns:repeat(4,1fr)}
+.rank-f{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2-5);margin-top:var(--space-3)}
+.badge-cur{display:inline-flex;align-items:center;gap:6px;font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:var(--color-positive)}
+.badge-cur::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:var(--glow-positive)}
+
+/* Loading skeleton */
+.skel{position:relative;overflow:hidden;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}
+.skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.05),transparent);animation:shimmer 1.4s infinite}
+@keyframes shimmer{to{transform:translateX(100%)}}
+.skel.block{height:120px;margin-bottom:var(--space-3);border-radius:var(--radius-xl)}
 
 /* 5. UTILITIES ------------------------------------------------------------ */
 .num{font-variant-numeric:tabular-nums}
