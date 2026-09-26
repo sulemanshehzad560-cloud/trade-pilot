@@ -392,7 +392,8 @@ export class Bot {
   // ---------- reporting ----------
   status(a) {
     const b = this.books[a], ac = this.acct(a), tr = b.trades, wins = tr.filter((t) => t.pnl > 0).length;
-    const positions = b.positions.map((p) => { const px = this.pxOf(p) ?? p.entry, val = p.qty * px * (1 - this.feeOf(p)); return { ...p, price: px, value: val, pnl: val - p.cost, pct: (val / p.cost - 1) * 100 }; });
+    const tgt = this.usesTarget(); // trades opened before the trailing strategy still carry an old, unused target
+    const positions = b.positions.map((p) => { const px = this.pxOf(p) ?? p.entry, val = p.qty * px * (1 - this.feeOf(p)); return { ...p, tp: tgt ? p.tp : null, price: px, value: val, pnl: val - p.cost, pct: (val / p.cost - 1) * 100 }; });
     const committed = b.positions.reduce((x, p) => x + p.cost, 0);
     return {
       acct: a, running: ac.running, halt: b.halt, hasKeys: this.hasKeys(a), exchange: a === "live" ? this.settings.liveExchange : "demo", exName: this.exName(a), ccy: this.ccy(a), minTrade: this.minTrade(a), tg: !!(this.secrets.tgToken && this.secrets.tgChat), aed: AED,
