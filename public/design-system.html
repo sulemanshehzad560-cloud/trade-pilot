@@ -27,7 +27,7 @@ main{padding-bottom:var(--space-7)}
 <body>
 <header class="top">
   <svg viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="#101217" stroke="#d8b25e" stroke-opacity=".5"/><path d="M9 33l9-10 7 6 13-15M31 14h7v7" fill="none" stroke="#d8b25e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <h1>Design System</h1><span class="pill on"><i></i>NIGHT GOLD v1.0</span>
+  <h1>Design System</h1><span class="pill on"><i></i>NIGHT GOLD v2.0</span>
 </header>
 <main>
   <p class="small mut mt-3-5">Tokens and components used by the Trade Pilot dashboard. Source: <code class="sg-code">public/design-system.css</code> · docs: <code class="sg-code">DESIGN_SYSTEM.md</code></p>
@@ -74,16 +74,15 @@ main{padding-bottom:var(--space-7)}
     <div class="kpis"><div class="kpi"><b class="num up">+3.10</b><span>Today</span></div><div class="kpi"><b class="num">62%</b><span>Win rate</span></div><div class="kpi"><b class="num">21</b><span>Trades</span></div></div>
   </div>
   <div class="card"><div class="row"><h3>Budget</h3><span class="small num mut">120 / 200 USDT</span></div>
-    <div class="bar mt-2-5"><i class="fill" style="width:60%"></i><i class="rest" style="width:40%"></i></div></div>
-  <div class="pos">
-    <div class="row"><span class="sym">SOL</span><span class="pct num up">+2.35%</span></div>
-    <div class="row small num mt-1"><span class="mut">Bought 142.10 · now 145.44</span><span class="up">+2.35 USDT</span></div>
-    <div class="range"><s style="left:40%"></s><b style="left:calc(62% - 2px)"></b></div>
-    <div class="row tiny num"><span class="down">Stop 138.20</span><span class="up">Target 150.00</span></div>
-  </div>
-  <div class="srow sig"><div class="row"><b class="sym">ETH</b><span class="chip buy">Buy signal</span></div><div class="score"><i style="width:82%"></i></div></div>
-  <div class="card"><div class="tbl"><table><thead><tr><th>Coin</th><th>Trades</th><th>Win %</th><th>P/L</th></tr></thead><tbody><tr><td><b>BTC</b></td><td class="num">8</td><td class="num">62</td><td class="num up">+12.40</td></tr><tr><td><b>ETH</b></td><td class="num">5</td><td class="num">40</td><td class="num down">−3.10</td></tr></tbody></table></div></div>
-  <div class="empty">No open trades. Start the bot to begin.</div>
+    <div class="bar mt-3"><i class="fill" style="width:60%"></i><i class="rest" style="width:40%"></i></div><div class="legend num"><span>In trades 120.00</span><span>Free 80.00</span></div></div>
+  <div class="pos"><div class="pos-h"><span class="coin">SOL</span><div class="grow"><span class="sym">SOL <span class="tiny mut">/USDT</span></span><span class="tiny mut num">Bought 142.10 · now 145.44 · 2 h ago</span></div><div class="pnl up"><b>+2.4%</b><span>+2.35 USDT</span></div></div>
+    <div class="ladder"><div class="range"><s style="left:40%"></s><b style="left:62%"></b></div><div class="ladder-l"><span class="down">Stop · breakeven<b>142.67</b></span><span>Bought<b>142.10</b></span><span class="up">No fixed target<b>Trailing</b></span></div></div>
+    <div class="pos-f"><span class="shield">Stop-loss placed on Binance</span><button class="btn sm red">Sell now</button></div></div>
+  <div class="srow sig"><div class="row"><div class="sr-name"><span class="coin sm">ETH</span><div><b class="sym">ETH</b><span class="tiny mut num">3,985.90</span></div></div><span class="chip buy">Buy signal</span></div>
+    <div class="metrics num"><div><span>RSI</span><b>66</b></div><div><span>Trend</span><b class="up">+6.3%</b></div><div><span>24 candles</span><b class="down">−0.1%</b></div><div><span>Stop</span><b>1.5%</b></div></div><div class="score-l"><span>Signal strength</span><b>82/100</b></div><div class="score"><i style="width:82%"></i></div></div>
+  <div class="card"><h3>Closed trades</h3><div class="trow"><span class="coin sm">BTC</span><div><b>BTC</b> <span class="tiny mut">26 Sept, 14:05</span><div class="tiny mut num">63,210 → 64,480</div><span class="why-t">Trailing stop</span></div><div class="r"><b class="num up">+12.40</b><div class="tiny num up">+2.0%</div></div></div><div class="trow"><span class="coin sm">ETH</span><div><b>ETH</b> <span class="tiny mut">25 Sept, 09:40</span><div class="tiny mut num">3,990 → 3,930</div><span class="why-t">Stop-loss</span></div><div class="r"><b class="num down">−3.10</b><div class="tiny num down">−1.5%</div></div></div>
+    <div class="wl"><i class="w" style="width:62%"></i><i class="l" style="width:38%"></i></div><div class="legend"><span class="up">5 won</span><span class="down">3 lost</span></div></div>
+  <div class="empty"><b>No open trades</b>Start the bot to begin.</div>
 
   <h2 class="sg-sec">Forms</h2>
   <div class="card">

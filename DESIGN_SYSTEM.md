@@ -1,4 +1,4 @@
-# Trade Pilot Design System — "Night Gold" v1.0
+# Trade Pilot Design System — "Night Gold" v2.0
 
 The dashboard's visual language, extracted from `public/index.html` into a
 reusable, token-based system.
@@ -8,6 +8,14 @@ reusable, token-based system.
 | `public/design-system.css` | The implementation: tokens, base styles, components, utilities. Loaded by the app. |
 | `design-tokens.json` | The same tokens in W3C Design Tokens format, for Figma / Style Dictionary / other apps. |
 | `public/design-system.html` | Live style guide — open `/design-system.html` on the running dashboard. |
+
+## What's new in v2.0
+
+- Refreshed palette: deeper blue-black surfaces, the same brand gold, clearer green and red.
+- **Open trades** use a coin badge, a P/L badge and a labelled price ladder (stop · bought · target or trailing).
+- **Scanner** rows show a metrics grid and a labelled signal-strength bar.
+- **Trades** and **Backtest** use phone-friendly list rows instead of wide tables, plus a win/loss bar.
+- Desktop: side-rail navigation, a two-column home and two-column settings; dialogs open centred.
 
 ## Principles
 
@@ -31,19 +39,19 @@ Change the look by editing **semantic** tokens (or the primitives they point to)
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--color-bg` | `#07080a` | Page background |
-| `--color-surface` | `#101217` | Cards, sheets, position rows |
-| `--color-surface-raised` | `#171a21` | KPI tiles, tracks, secondary buttons, segmented controls |
-| `--color-surface-overlay` | `#1b1e25` | Toasts |
-| `--color-field` | `#0b0c10` | Text inputs |
-| `--color-border` / `-strong` | `#252932` / `#3a3f4b` | Hairlines / inactive indicators |
-| `--color-text` / `-soft` / `-muted` | `#eef0f3` / `#c6cbd5` / `#8d94a3` | Primary / body-secondary / captions |
-| `--color-accent` (`-hi`, `-lo`) | `#d8b25e` (`#f3d796`, `#b28a36`) | Brand gold, primary action, focus |
+| `--color-bg` | `#06070a` | Page background |
+| `--color-surface` | `#10131a` | Cards, sheets, position cards |
+| `--color-surface-raised` | `#161a23` | Secondary buttons |
+| `--color-surface-overlay` | `#1c212c` | Selected tab, toasts, hover |
+| `--color-field` | `#0b0d12` | Inputs, KPI tiles, metric cells, tracks |
+| `--color-border` / `-strong` | `#262c39` / `#363d4d` | Hairlines / hover and inactive indicators |
+| `--color-text` / `-soft` / `-muted` | `#eef1f6` / `#c7ccd8` / `#8b93a5` | Primary / body-secondary / captions |
+| `--color-accent` (`-hi`, `-lo`) | `#d8b25e` (`#f3d796`, `#a8812f`) | Brand gold, primary action, focus |
 | `--color-on-accent` | `#17130a` | Text on gold |
-| `--color-positive` | `#23c68b` | Profit, buy signal, running |
-| `--color-negative` | `#ff6161` | Loss, stop, danger |
-| `--color-warning` | `#f0a93b` | Warnings, errors in data |
-| `--color-info` | `#6ea8ff` | Demo / informational |
+| `--color-positive` | `#22c58b` | Profit, buy signal, running |
+| `--color-negative` | `#ff5f5f` | Loss, stop, danger, real money |
+| `--color-warning` | `#f2ab3c` | Warnings, errors in data |
+| `--color-info` | `#72a9ff` | Demo / informational |
 
 Tints for banners, chips and pills are provided as `--color-*-tint` and `--color-*-border`.
 Every primitive hue also exposes an `--tp-*-rgb` channel triplet, so new tints are `rgba(var(--tp-gold-rgb), .2)`.
@@ -86,12 +94,15 @@ Weights: `--font-weight-medium` 600, `-bold` 700, `-heavy` 800.
 | Choice chips | `<div class="chips"><button aria-pressed>` | — |
 | Segmented control | `.acctsw` (tabs, `aria-selected`) · `.seg` (toggle, `aria-pressed`) | `.live` on a button |
 | Banner | `<div class="banner warn">` | `.warn` · `.bad` · `.info` · `.inline` |
-| Position card | `.pos` with `.sym`, `.pct`, `.range` | — |
-| Scanner row | `.srow` with `.score` | `.sig` |
-| Progress bar | `<div class="bar"><i class="fill"><i class="rest">` | — |
+| Coin badge | `<span class="coin">SOL</span>` | `.sm` |
+| Position card | `.pos` > `.pos-h` (coin, `.sym`, `.pnl`) · `.ladder` (`.range` + `.ladder-l`) · `.pos-f` (`.shield`, sell) | `.pnl.up/.down` |
+| Scanner row | `.srow` > `.sr-name` · `.metrics` · `.score-l` + `.score` | `.sig` |
+| Win/loss bar | `.wl > i.w + i.l` with `.legend` | — |
+| Backtest row | `.btr` (coin, detail, `.r`) | — |
+| Progress bar | `<div class="bar"><i class="fill"><i class="rest">` + `.legend` | — |
 | Section heading | `<div class="section-head"><h2 class="page-title">` | `.spaced` |
 | Form | `label` + `input`, `.g2` two-up grid, `.hint`, `.err`, `.chk` | — |
-| Lists | `.trow`, `.loginfo`, `.tbl > table`, `.empty` | `.lv-trade/alert/error` |
+| Lists | `.trow` (coin, detail, `.why-t`, `.r`), `.loginfo`, `.tbl > table`, `.empty` | `.lv-trade/alert/error` |
 | Chrome | `.top`, `.acctbar`, `.nav`, `.toast`, `.modal > .mbox`, `.gate > .gcard` | — |
 
 ## Utilities
