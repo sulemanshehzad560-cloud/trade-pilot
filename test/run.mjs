@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as mock from "./mock-binance.mjs";
 import * as bo from "./mock-bitoasis.mjs";
+import { DEFAULTS as SDEF } from "../src/strategy.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MP = 9311, SP = 9312, BP = 9313, BASE = `http://127.0.0.1:${SP}`;
@@ -66,9 +67,11 @@ try {
   ok(mock.state.errors.length === 0, "Binance accepted every order (steps, ticks, minimums): " + (mock.state.errors.join("; ") || "no errors"));
   ok(st && st.committed <= 150 + 0.01, "live spent within its 150 USDT budget");
   const sol = st.positions.find((p) => p.symbol === "SOLUSDT"), eth = st.positions.find((p) => p.symbol === "ETHUSDT");
+  ok(SDEF.exit !== "trail" || st.positions.every((p) => p.tp === null), "trailing-stop strategy shows no take-profit it won't use");
 
   console.log("Breakeven, stop-loss and sell now");
-  mock.setPrice("SOLUSDT", sol.entry + sol.stopDist * 1.1);
+  // rise just past the strategy's breakeven level (breakevenR × the risk), but not far enough to start trailing
+  mock.setPrice("SOLUSDT", sol.entry + sol.stopDist * (SDEF.breakevenR + 0.1));
   st = await until(async () => { const s = (await api("status?acct=live")).d, p = s.positions.find((x) => x.symbol === "SOLUSDT"); return p && p.stop >= p.entry && s; });
   ok(!!st, "stop moved to breakeven after price rose");
   const solStop = mock.state.orders.filter((o) => o.symbol === "SOLUSDT" && o.type === "STOP_LOSS_LIMIT");
@@ -124,7 +127,7 @@ try {
   ok(st && st.committed <= 300.01 && st.positions.every((p) => p.pair.endsWith("-AED") && p.cost <= 150), `spent within 150 AED per trade (${st && st.committed.toFixed(2)} AED)`);
   ok(st && Math.abs(1000 - bo.state.bal.AED - st.committed) < 0.01, "cost recorded matches what left the AED wallet exactly");
   const bsol = st.positions.find((p) => p.symbol === "SOLUSDT"), beth = st.positions.find((p) => p.symbol === "ETHUSDT");
-  mock.setPrice("SOLUSDT", bsol.entry / 3.6725 / 0.999 * (1 + bsol.stopDist / bsol.entry * 1.2));
+  mock.setPrice("SOLUSDT", bsol.entry / 3.6725 / 0.999 * (1 + bsol.stopDist / bsol.entry * (SDEF.breakevenR + 0.2)));
   st = await until(async () => { const s = (await api("status?acct=live")).d, p = s.positions.find((x) => x.symbol === "SOLUSDT"); return p && p.stop >= p.entry && p.stopOrderId !== bsol.stopOrderId && s; });
   const solStops = bo.state.orders.filter((o) => o.pair === "SOL-AED" && o.type === "stop");
   ok(!!st && solStops.length === 2 && solStops[0].status === "CANCELED" && solStops[1].status === "OPEN", "breakeven: old BitOasis stop cancelled, new one placed");

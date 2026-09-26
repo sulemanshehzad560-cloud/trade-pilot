@@ -245,10 +245,10 @@ export class Bot {
       entry = fs.avg; cost = fs.quote + fs.feeQuote; qty = +floorToStep(fs.netQty, f.step);
     } else { const px = this.prices[sym] || sig.price; entry = px * (1 + SLIP); cost = size; qty = size * (1 - FEE) / entry; }
     const stopDist = Math.min(sig.stopDist, entry * s.strategy.maxStopPct / 100);
-    const pos = { id: uid(), ex: live ? "binance" : "demo", symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
+    const pos = { id: uid(), ex: live ? "binance" : "demo", symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: this.usesTarget() ? entry + stopDist * s.strategy.rr : null, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
     b.positions.push(pos); this.saveBook(a);
     if (live) await this.placeStop(pos, f);
-    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)`, a);
+    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), ${pos.tp ? `target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)` : "no fixed target, trailing stop once in profit"}`, a);
   }
   async placeStop(pos, f) {
     if (pos.ex === "bitoasis") return this.boPlaceStop(pos);
@@ -270,6 +270,8 @@ export class Bot {
     }
   }
   fromStopOrder(pos, o) { if (pos.ex === "bitoasis") return this.boFromStop(pos, o); const q = +o.executedQty, qt = +o.cummulativeQuoteQty; return this.record("live", pos, qt / q, qt * (1 - FEE), "Stop-loss (on Binance)"); }
+  // Only the "target" exit sells at a fixed take-profit; the default "trail" exit rides a trailing stop instead.
+  usesTarget() { return ({ ...SDEF, ...this.settings.strategy }).exit === "target"; }
   async managePos(a, pos) {
     const s = this.settings, live = a === "live", px = this.pxOf(pos);
     if (!px) return;
@@ -285,7 +287,7 @@ export class Bot {
     const before = pos.stop, m = manage(pos, { high: px, low: px, price: px }, { ...SDEF, ...s.strategy });
     if (m.exit) return this.close(a, pos, m.reason);
     if (pos.stop !== before) {
-      this.log("info", `${pos.symbol}: price is up, stop-loss moved to breakeven (${fmtPx(pos.stop)})`, a);
+      this.log("info", `${pos.symbol}: price is up, ${m.moved.includes("trail") ? "trailing stop raised" : "stop-loss moved to breakeven"} (${fmtPx(pos.stop)})`, a);
       if (live) { const c = await this.cancelStop(pos); if (c.filled) return this.fromStopOrder(pos, c.order); await this.placeStop(pos); }
     }
     this.saveBook(a);
@@ -349,10 +351,10 @@ export class Bot {
     }
     if (!(cost > 0) || cost > size * 1.5) cost = o.amount * t.ask * (1 + BO_FEE);
     const entry = cost / qty, pct = Math.min(sig.stopDist / sig.price, s.strategy.maxStopPct / 100), stopDist = entry * pct;
-    const pos = { id: uid(), ex: "bitoasis", symbol: sym, pair, base: coin, entry, qty, cost, stopDist, stop: entry - stopDist, tp: entry + stopDist * s.strategy.rr, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null, buyOrderId: o.id || null };
+    const pos = { id: uid(), ex: "bitoasis", symbol: sym, pair, base: coin, entry, qty, cost, stopDist, stop: entry - stopDist, tp: this.usesTarget() ? entry + stopDist * s.strategy.rr : null, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null, buyOrderId: o.id || null };
     b.positions.push(pos); this.saveBook(a);
     await this.boPlaceStop(pos);
-    this.log("trade", `BOUGHT ${pair}: ${round(cost)} AED at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(pct * 100, 1)}%), target ${fmtPx(pos.tp)} (+${round(pct * s.strategy.rr * 100, 1)}%)`, a);
+    this.log("trade", `BOUGHT ${pair}: ${round(cost)} AED at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(pct * 100, 1)}%), ${pos.tp ? `target ${fmtPx(pos.tp)} (+${round(pct * s.strategy.rr * 100, 1)}%)` : "no fixed target, trailing stop once in profit"}`, a);
   }
   async boPlaceStop(pos) {
     const d = pos.stop >= 1000 ? 0 : pos.stop >= 10 ? 2 : pos.stop >= 0.1 ? 4 : 6;
