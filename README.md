@@ -187,3 +187,7 @@ Then open the app and use your setup code again. Your trades and keys are kept.
   - `src/server.js` – login and API
 - **Tests:** `npm test` runs the full end-to-end test against a strict fake Binance and a strict fake BitOasis in `test/`, which checks signatures, price ticks, lot steps, minimum order size and balances.
 - **Run locally:** `npm start` serves the dashboard on port 8080. The setup code is printed in the console. Local runs work only from outside the US, because of Binance's location block.
+
+## Design system
+
+The dashboard UI is built on the **Night Gold** design system: tokens and components live in `public/design-system.css`, documented in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) (tokens also in `design-tokens.json`). Open `/design-system.html` on your dashboard for the live style guide.
