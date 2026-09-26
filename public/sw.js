@@ -1,5 +1,5 @@
 // Offline shell for the installed app. API calls always go to the network.
-const C = "trade-pilot-v4";
+const C = "trade-pilot-v5";
 self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(C).then((c) => c.addAll(["/", "/index.html", "/design-system.css", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"]).catch(() => {}))); });
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x !== C).map((x) => caches.delete(x)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (e) => {

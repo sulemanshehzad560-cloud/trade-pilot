@@ -5,8 +5,8 @@
 // Signals always come from Binance's public price charts (no account needed); BitOasis has no chart API.
 import { Binance, floorToStep, roundToStep, fillSummary } from "./binance.js";
 import { BitOasis, toPair, orderStatus } from "./bitoasis.js";
-import { analyse, manage, DEFAULTS as SDEF } from "./strategy.js";
-import { backtestSymbol } from "./backtest.js";
+import { analyse, manage, DEFAULTS as SDEF, PRESETS, presetOf, ENTRIES } from "./strategy.js";
+import { backtestSymbol, combinedDD } from "./backtest.js";
 import { load, save } from "./store.js";
 
 export const AED = 3.6725;
@@ -19,7 +19,7 @@ const SETTINGS_DEF = {
   accounts: { demo: { ...ACCT_DEF, budget: 1000, perTrade: 100 }, live: { ...ACCT_DEF } },
   liveExchange: "binance", maxOpen: 2, dailyLossPct: 5, maxLossPct: 20, cooldownHours: 6,
   watch: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"],
-  strategy: { interval: "1h", rr: 2, maxStopPct: 6, maxHoldHours: 72 },
+  strategy: { preset: "pb-trail-1h", interval: "1h", rr: 2, maxStopPct: 6, maxHoldHours: 72 },
 };
 const BOOK_DEF = { positions: [], trades: [], realized: 0, day: { key: "", pnl: 0 }, halt: null, lastBar: {}, cooldown: {}, equity: [] };
 const dubaiDay = (t = Date.now()) => new Date(t + 4 * 3600e3).toISOString().slice(0, 10);
@@ -104,7 +104,7 @@ export class Bot {
     this.settings = copy;
     if (switching) { this.loadBook("live"); this.boPx = {}; this.scanAt = 0; this.log("info", `Live account now trades on ${EXNAME[ex]} (${this.ccy("live")})`, "live"); }
     if (copy.watch.join() !== before.watch || copy.strategy.interval !== before.interval) { this.scanAt = 0; this.scan = {}; }
-    this.bt = null; this.saveSettings();
+    this.bt = null; if (this.cmp) this.cmp.rows.forEach((r) => { r.current = r.id === copy.strategy.preset; }); this.saveSettings();
   }
   _apply(s, p) {
     const num =(v, lo, hi, name) => { const n = Number(v); if (!isFinite(n) || n < lo || n > hi) throw new Error(`${name} must be between ${lo} and ${hi}`); return n; };
@@ -130,6 +130,13 @@ export class Bot {
       if (q.rr !== undefined) st.rr = num(q.rr, 1, 5, "Reward:risk");
       if (q.maxStopPct !== undefined) st.maxStopPct = num(q.maxStopPct, 1, 20, "Max stop-loss");
       if (q.maxHoldHours !== undefined) st.maxHoldHours = num(q.maxHoldHours, 0, 720, "Max hold time");
+      // Choosing a strategy from the Strategy Lab: take its entry/exit rules and timeframe, keep the risk limits.
+      if (q.preset !== undefined) {
+        const pr = presetOf(q.preset); if (!pr) throw new Error("Unknown strategy");
+        for (const k of ["entry", "exit", "trailR", "breakevenR", "beLock", "rr"]) delete st[k];
+        Object.assign(st, pr.p, { preset: pr.id });
+      }
+      if (st.entry !== undefined && !ENTRIES.includes(st.entry)) throw new Error("Unknown entry style");
     }
   }
   start(a) {
@@ -193,7 +200,7 @@ export class Bot {
       try {
         let k = await this.api.klines(sym, s.strategy.interval, 320);
         if (k.length && k[k.length - 1].ct > now) k = k.slice(0, -1);
-        out[sym] = { symbol: sym, ...analyse(k, { ...SDEF, ...s.strategy }), at: now };
+        out[sym] = { symbol: sym, ...analyse(k, { ...SDEF, ...s.strategy }), spark: k.slice(-48).map((x) => x.c), at: now };
       } catch (e) { if (e.status === 451) throw e; out[sym] = { symbol: sym, status: "error", label: "Couldn't load", reasons: [e.message], score: 0, at: now }; }
     }
     if (this.isBO("live")) {
@@ -245,10 +252,10 @@ export class Bot {
       entry = fs.avg; cost = fs.quote + fs.feeQuote; qty = +floorToStep(fs.netQty, f.step);
     } else { const px = this.prices[sym] || sig.price; entry = px * (1 + SLIP); cost = size; qty = size * (1 - FEE) / entry; }
     const stopDist = Math.min(sig.stopDist, entry * s.strategy.maxStopPct / 100);
-    const pos = { id: uid(), ex: live ? "binance" : "demo", symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: this.usesTarget() ? entry + stopDist * s.strategy.rr : null, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
+    const pos = { id: uid(), ex: live ? "binance" : "demo", symbol: sym, base: f.base, entry, qty, cost, stopDist, stop: entry - stopDist, tp: this.tpFor(sig, entry, stopDist), exit: sig.exit || "trail", peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null };
     b.positions.push(pos); this.saveBook(a);
     if (live) await this.placeStop(pos, f);
-    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), ${pos.tp ? `target ${fmtPx(pos.tp)} (+${round(stopDist * s.strategy.rr / entry * 100, 1)}%)` : "no fixed target, trailing stop once in profit"}`, a);
+    this.log("trade", `BOUGHT ${sym}: ${round(cost)} USDT at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(stopDist / entry * 100, 1)}%), ${pos.tp ? `target ${fmtPx(pos.tp)} (+${round((pos.tp / entry - 1) * 100, 1)}%)` : "no fixed target, trailing stop once in profit"}`, a);
   }
   async placeStop(pos, f) {
     if (pos.ex === "bitoasis") return this.boPlaceStop(pos);
@@ -272,6 +279,10 @@ export class Bot {
   fromStopOrder(pos, o) { if (pos.ex === "bitoasis") return this.boFromStop(pos, o); const q = +o.executedQty, qt = +o.cummulativeQuoteQty; return this.record("live", pos, qt / q, qt * (1 - FEE), "Stop-loss (on Binance)"); }
   // Only the "target" exit sells at a fixed take-profit; the default "trail" exit rides a trailing stop instead.
   usesTarget() { return ({ ...SDEF, ...this.settings.strategy }).exit === "target"; }
+  // Trades remember their own exit style; older trades without one follow the current strategy.
+  exitOf(p) { return p.exit || (this.usesTarget() ? "target" : "trail"); }
+  // Take-profit for a new trade: the signal's own target (e.g. the Bollinger middle band) or reward:risk × stop.
+  tpFor(sig, entry, stopDist) { if (sig.exit !== "target") return null; const d = sig.tpDist ? sig.tpDist / sig.price * entry : stopDist * this.settings.strategy.rr; return entry + d; }
   async managePos(a, pos) {
     const s = this.settings, live = a === "live", px = this.pxOf(pos);
     if (!px) return;
@@ -351,10 +362,10 @@ export class Bot {
     }
     if (!(cost > 0) || cost > size * 1.5) cost = o.amount * t.ask * (1 + BO_FEE);
     const entry = cost / qty, pct = Math.min(sig.stopDist / sig.price, s.strategy.maxStopPct / 100), stopDist = entry * pct;
-    const pos = { id: uid(), ex: "bitoasis", symbol: sym, pair, base: coin, entry, qty, cost, stopDist, stop: entry - stopDist, tp: this.usesTarget() ? entry + stopDist * s.strategy.rr : null, peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null, buyOrderId: o.id || null };
+    const pos = { id: uid(), ex: "bitoasis", symbol: sym, pair, base: coin, entry, qty, cost, stopDist, stop: entry - stopDist, tp: this.tpFor(sig, entry, stopDist), exit: sig.exit || "trail", peak: entry, openedAt: Date.now(), why: sig.reasons.join(". "), stopOrderId: null, buyOrderId: o.id || null };
     b.positions.push(pos); this.saveBook(a);
     await this.boPlaceStop(pos);
-    this.log("trade", `BOUGHT ${pair}: ${round(cost)} AED at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(pct * 100, 1)}%), ${pos.tp ? `target ${fmtPx(pos.tp)} (+${round(pct * s.strategy.rr * 100, 1)}%)` : "no fixed target, trailing stop once in profit"}`, a);
+    this.log("trade", `BOUGHT ${pair}: ${round(cost)} AED at ${fmtPx(entry)}. Stop-loss ${fmtPx(pos.stop)} (−${round(pct * 100, 1)}%), ${pos.tp ? `target ${fmtPx(pos.tp)} (+${round((pos.tp / entry - 1) * 100, 1)}%)` : "no fixed target, trailing stop once in profit"}`, a);
   }
   async boPlaceStop(pos) {
     const d = pos.stop >= 1000 ? 0 : pos.stop >= 10 ? 2 : pos.stop >= 0.1 ? 4 : 6;
@@ -392,20 +403,62 @@ export class Bot {
   // ---------- reporting ----------
   status(a) {
     const b = this.books[a], ac = this.acct(a), tr = b.trades, wins = tr.filter((t) => t.pnl > 0).length;
-    const tgt = this.usesTarget(); // trades opened before the trailing strategy still carry an old, unused target
-    const positions = b.positions.map((p) => { const px = this.pxOf(p) ?? p.entry, val = p.qty * px * (1 - this.feeOf(p)); return { ...p, tp: tgt ? p.tp : null, price: px, value: val, pnl: val - p.cost, pct: (val / p.cost - 1) * 100 }; });
+    // a trade with a trailing exit never sells at a target, even if an older one was saved with it
+    const positions = b.positions.map((p) => { const px = this.pxOf(p) ?? p.entry, val = p.qty * px * (1 - this.feeOf(p)); return { ...p, tp: this.exitOf(p) === "target" ? p.tp : null, price: px, value: val, pnl: val - p.cost, pct: (val / p.cost - 1) * 100 }; });
     const committed = b.positions.reduce((x, p) => x + p.cost, 0);
     return {
       acct: a, running: ac.running, halt: b.halt, hasKeys: this.hasKeys(a), exchange: a === "live" ? this.settings.liveExchange : "demo", exName: this.exName(a), ccy: this.ccy(a), minTrade: this.minTrade(a), tg: !!(this.secrets.tgToken && this.secrets.tgChat), aed: AED,
       budget: ac.budget, perTrade: ac.perTrade, committed, available: Math.max(0, this.capital(a) - committed),
       realized: b.realized, unrealized: positions.reduce((x, p) => x + p.pnl, 0), today: b.day.pnl, trades: tr.length, wins, winRate: tr.length ? wins / tr.length * 100 : 0,
       positions, equity: b.equity.slice(-200), lastError: this.lastError, scanAt: this.scanAt,
+      limits: { dailyLossPct: this.settings.dailyLossPct, maxLossPct: this.settings.maxLossPct, maxOpen: this.settings.maxOpen }, strategy: this.strategyInfo(),
       other: Object.fromEntries(ACCTS.map((x) => [x, { running: this.acct(x).running, open: this.books[x].positions.length, total: this.books[x].realized + this.unrealized(x), halt: !!this.books[x].halt }])),
     };
   }
+  strategyInfo() { const st = this.settings.strategy, pr = presetOf(st.preset); return { id: pr ? pr.id : "custom", name: pr ? pr.name : "Custom", desc: pr ? pr.desc : "", interval: st.interval }; }
+  // Strategy Lab: backtest every preset on the watched coins (same fees, slippage and trade size) and rank them.
+  // Candles are fetched once per coin and timeframe; the work yields between coins so trading never stalls.
+  compare(force = false, perTrade = 100, budget = 1000) {
+    if (!force && this.cmp && Date.now() - this.cmpAt < 30 * 60e3) return this.cmp;
+    if (this.cmpBusy) return this.cmpBusy;
+    this.cmpBusy = (async () => {
+      try {
+        const s = this.settings, cache = {}, rows = [], yieldNow = () => new Promise((r) => setImmediate(r));
+        const candles = async (sym, iv) => {
+          const key = sym + iv; if (cache[key]) return cache[key];
+          let all = [], end;
+          for (let i = 0; i < 3; i++) { const k = await this.api.klines(sym, iv, 1000, end); if (!k.length) break; all = k.concat(all); end = k[0].t - 1; if (k.length < 1000) break; }
+          if (all.length && all[all.length - 1].ct > Date.now()) all.pop();
+          return (cache[key] = all);
+        };
+        for (const pr of PRESETS) {
+          const P = { ...SDEF, maxStopPct: s.strategy.maxStopPct, rr: s.strategy.rr, ...pr.p }, per = [];
+          for (const sym of s.watch) {
+            try { per.push(backtestSymbol(await candles(sym, pr.p.interval), P, { tradeSize: perTrade, fee: FEE, slip: SLIP })); }
+            catch (e) { if (e.status === 451) throw e; }
+            await yieldNow();
+          }
+          const list = per.flatMap((r) => r.list).sort((x, y) => x.exitT - y.exitT), pnl = per.reduce((x, r) => x + r.pnl, 0);
+          const gross = list.filter((t) => t.pnl > 0).reduce((x, t) => x + t.pnl, 0), loss = -list.filter((t) => t.pnl <= 0).reduce((x, t) => x + t.pnl, 0);
+          let eq = 0; const curve = list.map((t) => (eq += t.pnl)), step = Math.max(1, Math.ceil(curve.length / 40));
+          const from = Math.min(...per.map((r) => r.from || Infinity)), to = Math.max(...per.map((r) => r.to || 0)), dd = combinedDD(per.map((r) => r.list));
+          rows.push({ id: pr.id, name: pr.name, desc: pr.desc, src: pr.src, interval: pr.p.interval, pnl: round(pnl), pnlPct: round(pnl / budget * 100, 1),
+            trades: list.length, winRate: list.length ? round(list.filter((t) => t.pnl > 0).length / list.length * 100, 0) : 0,
+            profitFactor: loss ? round(gross / loss) : null, maxDD: round(dd), maxDDPct: round(dd / budget * 100, 1),
+            holdPct: per.length ? round(per.reduce((x, r) => x + r.holdPct, 0) / per.length, 1) : 0,
+            days: isFinite(from) && to ? Math.round((to - from) / 864e5) : 0, curve: curve.filter((_, i) => i % step === 0 || i === curve.length - 1).map((v) => round(v)),
+            current: pr.id === s.strategy.preset });
+        }
+        rows.sort((x, y) => y.pnl - x.pnl);
+        this.cmp = { at: Date.now(), perTrade, budget, coins: s.watch.map((x) => x.replace(/USDT$/, "")), rows }; this.cmpAt = Date.now();
+        return this.cmp;
+      } finally { this.cmpBusy = null; }
+    })();
+    return this.cmpBusy;
+  }
   publicSettings() {
     const s = this.settings, mask = (k) => (k ? k.slice(0, 4) + "…" + k.slice(-4) : "");
-    return { ...s, liveCcy: this.ccy("live"), keys: { key: mask(this.secrets.key), secret: !!this.secrets.secret }, bitoasis: { token: mask(this.secrets.boToken) }, telegram: { token: !!this.secrets.tgToken, chat: this.secrets.tgChat } };
+    return { ...s, liveCcy: this.ccy("live"), strategyInfo: this.strategyInfo(), presets: PRESETS.map(({ id, name, desc, src, p }) => ({ id, name, desc, src, interval: p.interval })), keys: { key: mask(this.secrets.key), secret: !!this.secrets.secret }, bitoasis: { token: mask(this.secrets.boToken) }, telegram: { token: !!this.secrets.tgToken, chat: this.secrets.tgChat } };
   }
   async backtest(force = false, perTrade = 100, budget = 1000) {
     if (!force && this.bt && Date.now() - this.btAt < 30 * 60e3) return this.bt;

@@ -1,5 +1,5 @@
 {
-  "$description": "Trade Pilot design tokens (\"Night Gold\" v2.0), generated from public/design-system.css.",
+  "$description": "Trade Pilot design tokens (\"Night Gold\" v3.0), generated from public/design-system.css.",
   "primitive": {
     "ink": {
       "1000": {

@@ -1,4 +1,4 @@
-# Trade Pilot Design System — "Night Gold" v2.0
+# Trade Pilot Design System — "Night Gold" v3.0
 
 The dashboard's visual language, extracted from `public/index.html` into a
 reusable, token-based system.
@@ -8,6 +8,16 @@ reusable, token-based system.
 | `public/design-system.css` | The implementation: tokens, base styles, components, utilities. Loaded by the app. |
 | `design-tokens.json` | The same tokens in W3C Design Tokens format, for Figma / Style Dictionary / other apps. |
 | `public/design-system.html` | Live style guide — open `/design-system.html` on the running dashboard. |
+
+## What's new in v3.0
+
+- **Market ticker:** a scrollable strip of watched coins with price, change, status dot and sparkline (`.ticker > .tk`).
+- **Interactive profit chart:** touch or hover to read any point (`.chart` + `.tip`).
+- **Bot health:** ring gauges for loss limits and trade slots (`.health > .ring`), the strategy in use (`.strat-chip`) and market mood chips (`.mood`).
+- **Mini charts:** last 48 candles with dashed buy and stop lines on open trades and scanner rows (`.mini`, `.mini-l`).
+- **Scanner filters:** `.filters` pills with counts, and trend/sideways badges (`.regime.trend/.range`).
+- **Strategy Lab leaderboard:** ranked strategy cards (`.rank`, `.rank.best`, `.rank.cur`, `.rank-n.g1/g2/g3` medals, `.rank-d`, `.badge-cur`).
+- **Loading skeletons** (`.skel`, `.skel.block`) and a count-up animation on the total P/L (off with reduced motion).
 
 ## What's new in v2.0
 
